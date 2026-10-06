@@ -1,20 +1,13 @@
 #include "../include/DataStore.h"
 #include <iostream>
 using namespace std;
-
-// -------- Student Operations --------
-
 void DataStore::addStudent(Student student) {
     int id = student.getId();
-
-    // Store in hash map: O(1) insert
     students[id] = student;
-
-    // Build inverted index for skills
+    // Build invertedindex for skills
     for (const string& skill : student.getSkills()) {
         skillIndex[skill].push_back(id);
     }
-
     // Build inverted index for interests
     for (const string& interest : student.getInterests()) {
         interestIndex[interest].push_back(id);
@@ -43,9 +36,6 @@ void DataStore::displayAllStudents() const {
         const_cast<Student&>(pair.second).display();
     }
 }
-
-// -------- Group Operations --------
-
 void DataStore::addGroup(Group group) {
     int id = group.getGroupId();
     groups[id] = group;  // O(1) insert
@@ -69,9 +59,6 @@ void DataStore::displayAllGroups() const {
         pair.second.display();
     }
 }
-
-// -------- Post Operations --------
-
 void DataStore::addPost(Post post) {
     posts[post.getPostId()] = post;  // O(1) insert
 }
@@ -90,9 +77,6 @@ void DataStore::displayAllPosts() const {
 int DataStore::getNextPostId() {
     return nextPostId++;
 }
-
-// -------- Search using Inverted Index (O(1) average) --------
-
 vector<Student> DataStore::matchBySkill(string skill) {
     vector<Student> result;
     auto it = skillIndex.find(skill);
