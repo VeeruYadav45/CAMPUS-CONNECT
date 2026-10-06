@@ -115,3 +115,11 @@ vector<Student> DataStore::matchByDepartment(string department) {
     }
     return result;
 }
+
+vector<Student> DataStore::getAllStudents() const {
+    vector<Student> result;
+    for (const auto& pair : students) {
+        result.push_back(pair.second);
+    }
+    return result;
+}

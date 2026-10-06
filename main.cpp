@@ -6,6 +6,7 @@
 #include "include/post.h"
 #include "include/Group.h"
 #include "include/DataStore.h"
+#include "include/JaccardMatching.h"
 using namespace std;
 
 // Helper: get current timestamp as string
@@ -33,6 +34,7 @@ void printMenu() {
     cout << "12. View All Posts" << endl;
     cout << "13. Post in a Group" << endl;
     cout << "14. View Posts in a Group" << endl;
+    cout << "15. Find Similar Students (Jaccard)" << endl;
     cout << "0. Exit" << endl;
     cout << "================================" << endl;
     cout << "Enter choice: ";
@@ -224,6 +226,34 @@ int main() {
             if (!g) cout << "Group not found." << endl;
             else g->displayPosts();
 
+        } else if (choice == 15) {
+            // Find Similar Students using Jaccard Similarity
+            int sId;
+            cout << "Enter Your Student ID: ";
+            cin >> sId;
+            cin.ignore();
+            Student* target = store.findStudentById(sId);
+            if (!target) {
+                cout << "Student not found." << endl;
+            } else {
+                JaccardMatching matcher;
+                vector<Student> all = store.getAllStudents();
+                cout << "\n===== SIMILAR STUDENTS (Jaccard) ====" << endl;
+                cout << "Comparing with: " << target->getName() << endl;
+                cout << "--------------------------------------" << endl;
+                bool anyFound = false;
+                for (Student& s : all) {
+                    if (s.getId() == sId) continue;
+                    double score = matcher.calculateSimilarity(*target, s);
+                    if (score > 0) {
+                        anyFound = true;
+                        cout << "Student: " << s.getName()
+                             << " | ID: " << s.getId()
+                             << " | Similarity: " << (int)(score * 100) << "%" << endl;
+                    }
+                }
+                if (!anyFound) cout << "No similar students found." << endl;
+            }
         } else if (choice != 0) {
             cout << "Invalid choice. Try again." << endl;
         }

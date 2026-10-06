@@ -45,6 +45,9 @@ public:
     vector<Student> matchBySkill(string skill);
     vector<Student> matchByInterest(string interest);
     vector<Student> matchByDepartment(string department);
+
+    // Get all students (for Jaccard comparison)
+    vector<Student> getAllStudents() const;
 };
 
 #endif
