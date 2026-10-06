@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++11 -Wall -I include
 TARGET = campus_connect
 
-SRCS = main.cpp src/student.cpp src/post.cpp src/Group.cpp src/DataStore.cpp
+SRCS = main.cpp src/student.cpp src/post.cpp src/Group.cpp src/DataStore.cpp src/Graph.cpp src/JaccardMatching.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 all: $(TARGET)
