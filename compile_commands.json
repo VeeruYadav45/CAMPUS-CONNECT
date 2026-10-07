@@ -1,0 +1,12 @@
+[
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c main.cpp -o main.o", "file": "main.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/student.cpp -o src/student.o", "file": "src/student.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/post.cpp -o src/post.o", "file": "src/post.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/Group.cpp -o src/Group.o", "file": "src/Group.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/DataStore.cpp -o src/DataStore.o", "file": "src/DataStore.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/Graph.cpp -o src/Graph.o", "file": "src/Graph.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/JaccardMatching.cpp -o src/JaccardMatching.o", "file": "src/JaccardMatching.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/ProjectPost.cpp -o src/ProjectPost.o", "file": "src/ProjectPost.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/ProjectGroup.cpp -o src/ProjectGroup.o", "file": "src/ProjectGroup.cpp"},
+    {"directory": "c:/Users/tanva/CAMPUS-CONNECT", "command": "g++ -std=c++11 -Wall -I include -c src/TopKRanker.cpp -o src/TopKRanker.o", "file": "src/TopKRanker.cpp"}
+]

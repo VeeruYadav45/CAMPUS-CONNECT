@@ -6,7 +6,7 @@
 using namespace std;
 
 class Post {
-private:
+protected:  // Changed from private so subclasses (e.g. ProjectPost) can access
     int postId;
     int authorId;      // Student ID who created the post
     string authorName;
@@ -17,6 +17,7 @@ private:
 public:
     Post(int postId, int authorId, string authorName, string content, string timestamp);
     Post() : postId(0), authorId(0), likes(0) {}
+    virtual ~Post() {}  // Virtual destructor for safe polymorphic deletion
 
     int getPostId() const;
     int getAuthorId() const;
@@ -26,7 +27,7 @@ public:
     int getLikes() const;
 
     void addLike();
-    void display() const;
+    virtual void display() const;  // Virtual so ProjectPost can override
 };
 
 #endif
