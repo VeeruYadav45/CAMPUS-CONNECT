@@ -1,8 +1,6 @@
 #ifndef MATCHING_STRATEGY_H
 #define MATCHING_STRATEGY_H
-
 #include "student.h"
-
 class MatchingStrategy {
 public:
     virtual ~MatchingStrategy() {}
@@ -12,5 +10,4 @@ public:
         const Student& student2
     ) const = 0;
 };
-
 #endif

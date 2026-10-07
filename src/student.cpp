@@ -26,7 +26,7 @@ void Student::addinterest(string interest) {
 
 // Display student info
 void Student::display() {
-    cout << "-----------------------------" << endl;
+    cout << "----" << endl;
     cout << "ID         : " << id << endl;
     cout << "Name       : " << name << endl;
     cout << "Department : " << department << endl;
@@ -45,5 +45,5 @@ void Student::display() {
         if (i != interests.size() - 1) cout << ", ";
     }
     cout << endl;
-    cout << "-----------------------------" << endl;
+    cout << "----" << endl;
 }

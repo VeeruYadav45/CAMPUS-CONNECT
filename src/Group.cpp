@@ -15,7 +15,6 @@ string Group::getGroupName() const { return groupName; }
 string Group::getDescription() const { return description; }
 int Group::getAdminId() const { return adminId; }
 vector<int> Group::getMemberIds() const { return memberIds; }
-vector<Post> Group::getPosts() const { return posts; }
 
 // Add a member
 void Group::addMember(int studentId) {
@@ -47,26 +46,35 @@ bool Group::isMember(int studentId) const {
     return find(memberIds.begin(), memberIds.end(), studentId) != memberIds.end();
 }
 
-// Add a post to group
-void Group::addPost(Post post) {
-    posts.push_back(post);
+// Add a post using individual fields
+void Group::addPost(int postId, int authorId, string authorName,
+                    string content, string timestamp, string type, string skill) {
+    GroupPost gp;
+    gp.postId = postId;
+    gp.authorId = authorId;
+    gp.authorName = authorName;
+    gp.content = content;
+    gp.timestamp = timestamp;
+    gp.type = type;
+    gp.skill = skill;
+    groupPosts.push_back(gp);
 }
 
 // Display all group posts
 void Group::displayPosts() const {
-    if (posts.empty()) {
+    if (groupPosts.empty()) {
         cout << "No posts in this group yet." << endl;
         return;
     }
     cout << "\n--- Posts in Group: " << groupName << " ---" << endl;
-    for (const Post& p : posts) {
-        p.display();
+    for (const GroupPost& gp : groupPosts) {
+        gp.display();
     }
 }
 
 // Display group info
 void Group::display() const {
-    cout << "=============================" << endl;
+    cout << "====" << endl;
     cout << "Group ID    : " << groupId << endl;
     cout << "Group Name  : " << groupName << endl;
     cout << "Description : " << description << endl;
@@ -77,6 +85,6 @@ void Group::display() const {
         if (i != memberIds.size() - 1) cout << ", ";
     }
     cout << endl;
-    cout << "Total Posts : " << posts.size() << endl;
-    cout << "=============================" << endl;
+    cout << "Total Posts : " << groupPosts.size() << endl;
+    cout << "====" << endl;
 }

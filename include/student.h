@@ -1,5 +1,5 @@
 #ifndef STUDENT_H
-#define STUDENT_H//prevent file from being included twice
+#define STUDENT_H
 #include<string>
 #include<vector>
 #include<iostream>
