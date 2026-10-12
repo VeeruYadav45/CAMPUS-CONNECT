@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Campus Connect</title>
+  <meta name="description" content="Campus Connect helps Graphic Era students find teammates, study partners and academic help by skills and interests.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Landing page (shown when logged out). Content is rendered by app.js -->
+  <div id="landing" class="lp" hidden></div>
+
+  <!-- Existing application -->
+  <header class="top" id="app-header">
+    <div class="bar">
+      <div class="brandrow">
+        <h1 class="logo">Campus Connect</h1>
+        <div class="who" id="who" hidden>
+          <span id="who-name"></span>
+          <button class="btn ghost" id="logout" type="button">Log out</button>
+        </div>
+      </div>
+      <nav class="tabs" id="tabs" role="tablist" hidden>
+        <button class="tab" role="tab" data-tab="discover">Matches</button>
+        <button class="tab" role="tab" data-tab="search">Search</button>
+        <button class="tab" role="tab" data-tab="network">Network</button>
+        <button class="tab" role="tab" data-tab="board">Help board</button>
+        <button class="tab" role="tab" data-tab="profile">Profile</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="view"></main>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
