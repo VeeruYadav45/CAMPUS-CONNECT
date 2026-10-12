@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Connect | Student Network & Project Collaborations</title>
+  <meta name="description" content="Campus Connect - Modern student social network and team matching platform with graph algorithms and Jaccard similarity.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- D3.js for interactive network graph -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <!-- Header / Navigation Bar -->
+  <header class="navbar" id="navbar">
+    <div class="nav-brand">
+      <div class="brand-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">CAMPUS CONNECT</span>
+        <span class="brand-badge">C++ Engine</span>
+      </div>
+    </div>
+
+    <!-- Active User Selector -->
+    <div class="nav-user-control">
+      <label for="current-user-select" class="user-select-label">Acting As:</label>
+      <div class="custom-select-wrapper">
+        <select id="current-user-select" class="nav-select" title="Switch acting user">
+          <option value="" disabled selected>Loading students...</option>
+        </select>
+      </div>
+      <button id="btn-load-demo" class="btn btn-secondary btn-sm" title="Re-populate demo database">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        <span>Reset / Load Demo</span>
+      </button>
+    </div>
+
+    <div class="nav-status">
+      <span class="status-indicator online" id="server-status-dot"></span>
+      <span id="server-status-text">Connected (:8080)</span>
+    </div>
+  </header>
+
+  <!-- Main Application Wrapper -->
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="students" id="tab-btn-students">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Students & Talent</span>
+        </button>
+
+        <button class="nav-item" data-tab="network" id="tab-btn-network">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="6" cy="6" r="3"></circle>
+            <circle cx="18" cy="18" r="3"></circle>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="6" r="3"></circle>
+            <line x1="9" y1="6" x2="15" y2="6"></line>
+            <line x1="6" y1="9" x2="6" y2="15"></line>
+            <line x1="18" y1="9" x2="18" y2="15"></line>
+            <line x1="9" y1="18" x2="15" y2="18"></line>
+          </svg>
+          <span>Social Network Graph</span>
+        </button>
+
+        <button class="nav-item" data-tab="projects" id="tab-btn-projects">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>Project Matcher (Top-K)</span>
+          <span class="badge-pill">Smart AI</span>
+        </button>
+
+        <button class="nav-item" data-tab="groups" id="tab-btn-groups">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          </svg>
+          <span>Groups & Teams</span>
+        </button>
+
+        <button class="nav-item" data-tab="feed" id="tab-btn-feed">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Campus Feed</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-stats" id="sidebar-stats-box">
+        <div class="stat-row">
+          <span class="stat-name">Students:</span>
+          <span class="stat-val" id="stat-students-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Connections:</span>
+          <span class="stat-val" id="stat-edges-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Groups:</span>
+          <span class="stat-val" id="stat-groups-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Projects:</span>
+          <span class="stat-val" id="stat-projects-count">0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-viewport">
+      
+      <!-- ============================================== -->
+      <!-- TAB 1: STUDENTS & TALENT DIRECTORY             -->
+      <!-- ============================================== -->
+      <section class="tab-pane active" id="tab-students">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Campus Directory & Peer Match</h1>
+            <p class="view-subtitle">Browse student profiles, search by skills/interests, and inspect Jaccard peer similarity scores.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btn-open-register-student">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Register Student</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div class="filter-card">
+          <div class="search-input-wrap">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="input-student-search" placeholder="Filter by name, department, skill, or interest..." autocomplete="off">
+          </div>
+          <div class="filter-actions">
+            <select id="select-filter-dept" class="styled-select">
+              <option value="">All Departments</option>
+              <option value="CSE">Computer Science (CSE)</option>
+              <option value="ECE">Electronics (ECE)</option>
+              <option value="IT">Information Tech (IT)</option>
+              <option value="AI-DS">AI & Data Science</option>
+            </select>
+            <button class="btn btn-secondary btn-icon" id="btn-refresh-students" title="Refresh directory">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Students Grid -->
+        <div class="students-grid" id="students-grid">
+          <!-- Dynamic student cards will render here -->
+        </div>
+      </section>
+
+
+      <!-- ============================================== -->
+      <!-- TAB 2: SOCIAL NETWORK GRAPH (D3 Force Graph)   -->
+      <!-- ============================================== -->
+      <section class="tab-pane" id="tab-network">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Campus Social Graph</h1>
+            <p class="view-subtitle">Interactive graph visualization built on C++ Adjacency List graph engine. Connect peers, discover mutuals, and inspect shortest paths.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary" id="btn-fit-graph">Fit View</button>
+            <button class="btn btn-primary" id="btn-open-connect-modal">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add Connection</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="network-layout">
+          <!-- D3 Canvas Container -->
+          <div class="graph-canvas-container" id="graph-container">
+            <svg id="network-svg" width="100%" height="100%"></svg>
+            <div class="graph-overlay-legend">
+              <div class="legend-item"><span class="legend-dot" style="background:#6366f1;"></span> Active User</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#38bdf8;"></span> Connected</div>
+              <div class="legend-item"><span class="legend-dot" style="background:#94a3b8;"></span> Peer</div>
+              <div class="legend-item"><span class="legend-line"></span> Edge / Mutual</div>
+            </div>
+          </div>
+
+          <!-- Network Inspector / Path Finding Panel -->
+          <div class="network-inspector-panel">
+            <div class="glass-card">
+              <h3 class="panel-section-title">Mutual Connections & Degrees</h3>
+              <p class="text-muted small">Analyze social proximity between students using BFS / DFS.</p>
+              
+              <div class="form-group mt-3">
+                <label for="select-path-target">Target Student:</label>
+                <select id="select-path-target" class="styled-select w-full"></select>
+              </div>
+              <button class="btn btn-secondary w-full mt-2" id="btn-find-mutuals">Check Mutuals</button>
+              
+              <div id="path-results-box" class="results-box mt-3">
+                <p class="text-placeholder">Select a peer to inspect mutual connections.</p>
+              </div>
+            </div>
+
+            <div class="glass-card mt-4">
+              <h3 class="panel-section-title">Active User Friends</h3>
+              <div id="active-user-friends-list" class="friends-mini-list mt-2">
+                <!-- List populated dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ============================================== -->
+      <!-- TAB 3: PROJECT MATCHER (TOP-K ALGORITHM)      -->
+      <!-- ============================================== -->
+      <section class="tab-pane" id="tab-projects">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Project Postings & Top-K Teammate Matcher</h1>
+            <p class="view-subtitle">Utilizes the C++ Jaccard Similarity + Priority Queue Ranker to find optimal teammates from the campus talent pool.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btn-open-create-project">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Post New Project</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="projects-layout">
+          <!-- Left: List of Project Postings -->
+          <div class="projects-sidebar-list">
+            <h3 class="section-heading">Available Project Posts</h3>
+            <div id="project-posts-list" class="posts-vlist mt-3">
+              <!-- Dynamically rendered project cards -->
+            </div>
+          </div>
+
+          <!-- Right: Project Match Detail & Top-K Candidate Matrix -->
+          <div class="project-detail-view" id="project-detail-pane">
+            <div class="empty-state-card" id="project-empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              <h3>Select a Project to Run Top-K Matching</h3>
+              <p>Choose any project post from the list to see real-time skill alignment and assemble a dedicated project group.</p>
+            </div>
+
+            <!-- Active Selected Project Container (Hidden until selected) -->
+            <div id="project-active-details" class="active-project-details hidden">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ============================================== -->
+      <!-- TAB 4: GROUPS & PROJECT TEAMS                  -->
+      <!-- ============================================== -->
+      <section class="tab-pane" id="tab-groups">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Campus Groups & Project Teams</h1>
+            <p class="view-subtitle">Collaborative hubs, interest clubs, and automated Project Groups with dedicated communication threads.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btn-open-create-group">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Create General Group</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="groups-grid" id="groups-grid">
+          <!-- Dynamic group cards -->
+        </div>
+      </section>
+
+
+      <!-- ============================================== -->
+      <!-- TAB 5: CAMPUS FEED                             -->
+      <!-- ============================================== -->
+      <section class="tab-pane" id="tab-feed">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Campus Activity & Discussion Feed</h1>
+            <p class="view-subtitle">Global announcements and shared updates across students and departments.</p>
+          </div>
+        </div>
+
+        <div class="feed-layout">
+          <!-- Post Creator Box -->
+          <div class="feed-creator-card glass-card">
+            <div class="creator-header">
+              <div class="user-avatar-sm" id="feed-creator-avatar">U</div>
+              <span class="creator-as-text">Posting as <strong id="feed-creator-name">...</strong></span>
+            </div>
+            <textarea id="feed-post-content" class="feed-textarea" placeholder="Share updates, project ideas, campus events, or questions with everyone..."></textarea>
+            <div class="creator-footer">
+              <span class="text-muted small">Broadcasts to all campus peers</span>
+              <button class="btn btn-primary" id="btn-submit-feed-post">Publish Post</button>
+            </div>
+          </div>
+
+          <!-- Feed Posts Timeline -->
+          <div class="feed-timeline" id="feed-timeline">
+            <!-- Dynamic posts list -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODALS                                         -->
+  <!-- ============================================== -->
+
+  <!-- Modal 1: Register Student -->
+  <div class="modal-backdrop hidden" id="modal-register-student">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Register New Student</h2>
+        <button class="btn-close-modal" data-modal="modal-register-student">&times;</button>
+      </div>
+      <form id="form-register-student" class="modal-form">
+        <div class="form-group">
+          <label for="reg-name">Full Name *</label>
+          <input type="text" id="reg-name" required placeholder="e.g. Maya Patel">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="reg-dept">Department *</label>
+            <select id="reg-dept" required class="styled-select">
+              <option value="CSE">CSE</option>
+              <option value="ECE">ECE</option>
+              <option value="IT">IT</option>
+              <option value="AI-DS">AI-DS</option>
+              <option value="Mechanical">Mechanical</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="reg-year">Year (1-4) *</label>
+            <input type="number" id="reg-year" required min="1" max="4" value="3">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="reg-skills">Skills (comma separated) *</label>
+          <input type="text" id="reg-skills" required placeholder="Python, C++, Machine Learning, React">
+        </div>
+        <div class="form-group">
+          <label for="reg-interests">Interests (comma separated)</label>
+          <input type="text" id="reg-interests" placeholder="Robotics, Open Source, Hackathons, Gaming">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-register-student">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Add Connection -->
+  <div class="modal-backdrop hidden" id="modal-connect">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Add Connection Edge</h2>
+        <button class="btn-close-modal" data-modal="modal-connect">&times;</button>
+      </div>
+      <form id="form-connect" class="modal-form">
+        <div class="form-group">
+          <label for="conn-student-a">Student 1:</label>
+          <select id="conn-student-a" class="styled-select w-full" required></select>
+        </div>
+        <div class="form-group">
+          <label for="conn-student-b">Student 2:</label>
+          <select id="conn-student-b" class="styled-select w-full" required></select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-connect">Cancel</button>
+          <button type="submit" class="btn btn-primary">Establish Edge</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Create Project Post -->
+  <div class="modal-backdrop hidden" id="modal-create-project">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Post New Project</h2>
+        <button class="btn-close-modal" data-modal="modal-create-project">&times;</button>
+      </div>
+      <form id="form-create-project" class="modal-form">
+        <div class="form-group">
+          <label for="proj-title">Project Title *</label>
+          <input type="text" id="proj-title" required placeholder="e.g. Autonomous Campus Delivery Drone">
+        </div>
+        <div class="form-group">
+          <label for="proj-leader">Project Owner *</label>
+          <select id="proj-leader" class="styled-select w-full" required></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="proj-skills">Required Skills (comma separated) *</label>
+            <input type="text" id="proj-skills" required placeholder="ROS, C++, Computer Vision, Python">
+          </div>
+          <div class="form-group">
+            <label for="proj-size">Team Size Needed *</label>
+            <input type="number" id="proj-size" required min="1" max="10" value="3">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-create-project">Cancel</button>
+          <button type="submit" class="btn btn-primary">Post Project</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 4: Create Group -->
+  <div class="modal-backdrop hidden" id="modal-create-group">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Create Campus Group</h2>
+        <button class="btn-close-modal" data-modal="modal-create-group">&times;</button>
+      </div>
+      <form id="form-create-group" class="modal-form">
+        <div class="form-group">
+          <label for="grp-name">Group Name *</label>
+          <input type="text" id="grp-name" required placeholder="e.g. Competitive Programming Club">
+        </div>
+        <div class="form-group">
+          <label for="grp-desc">Description</label>
+          <textarea id="grp-desc" placeholder="What is the group focused on?"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="grp-admin">Group Admin *</label>
+          <select id="grp-admin" class="styled-select w-full" required></select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal" data-modal="modal-create-group">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Group</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 5: Group Discussion Thread & Posts -->
+  <div class="modal-backdrop hidden" id="modal-group-discussion">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <div>
+          <h2 id="modal-group-title">Group Discussion</h2>
+          <p class="text-muted small" id="modal-group-subtitle">Members & messages</p>
+        </div>
+        <button class="btn-close-modal" data-modal="modal-group-discussion">&times;</button>
+      </div>
+      <div class="group-modal-body">
+        <div class="group-members-bar" id="modal-group-members-list">
+          <!-- Member avatars -->
+        </div>
+        <div class="group-posts-scroll" id="modal-group-posts-list">
+          <!-- Post cards inside group -->
+        </div>
+        <div class="group-post-input-box">
+          <input type="text" id="input-group-post-text" placeholder="Share a message or update with this group...">
+          <button class="btn btn-primary" id="btn-submit-group-post">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

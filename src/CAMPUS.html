@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Campus Connect</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F1F5F3;--surface:#FFFFFF;--ink:#15302A;--muted:#566A64;--line:#D4DED9;
+  --brand:#1E5245;--brand-ink:#FFFFFF;--hi:#F0CF65;--hi-ink:#3B2F00;--chip:#E3EBE8;--danger:#B3261E;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1A17;--surface:#15241F;--ink:#E4EEEA;--muted:#9AB0A9;--line:#294039;
+    --brand:#86CBB8;--brand-ink:#0E1A17;--hi:#E8C55A;--hi-ink:#2A2100;--chip:#1F332D;--danger:#F2B8B5;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1A17;--surface:#15241F;--ink:#E4EEEA;--muted:#9AB0A9;--line:#294039;
+  --brand:#86CBB8;--brand-ink:#0E1A17;--hi:#E8C55A;--hi-ink:#2A2100;--chip:#1F332D;--danger:#F2B8B5;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 var(--body)}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{max-width:760px;margin:0 auto;padding:12px 16px 0}
+.brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.logo{font:700 1.4rem/1 var(--display);letter-spacing:-.02em;margin:0}
+.as{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
+select,input,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:100%;width:100%}
+.as select{width:auto}
+textarea{min-height:80px;resize:vertical}
+.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:8px;scrollbar-width:none}
+.tab{border:0;background:none;font:700 .95rem var(--body);color:var(--muted);padding:10px 12px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brand)}
+main{max-width:760px;margin:0 auto;padding:0 16px 48px}
+h2{font:700 1.7rem/1.15 var(--display);letter-spacing:-.02em;margin:28px 0 6px}
+.sub{font:700 1.15rem/1.2 var(--display);margin:28px 0 10px}
+.lede{color:var(--muted);margin:0 0 20px;max-width:60ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.person{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.name{font:700 1.1rem/1.2 var(--display);margin:0}
+.meta{color:var(--muted);font-size:.9rem;margin:2px 0 0}
+.score{font:700 2.1rem/1 var(--display);text-align:right;letter-spacing:-.03em}
+.score small{display:block;font:400 .75rem var(--body);color:var(--muted);margin-top:4px;letter-spacing:0}
+.meterbar{height:6px;background:var(--chip);border-radius:3px;margin-top:12px;overflow:hidden}
+.meterbar span{display:block;height:100%;background:var(--hi)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0;padding:0;list-style:none}
+.chip{background:var(--chip);border-radius:999px;padding:3px 10px;font-size:.85rem}
+.chip.shared{background:var(--hi);color:var(--hi-ink);font-weight:700}
+.overlap{margin:10px 0 0;font-size:.9rem;color:var(--muted)}
+.actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:700 .95rem var(--body);border-radius:8px;padding:8px 14px;cursor:pointer;border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink)}
+.btn.ghost{background:none;color:var(--brand)}
+.btn:disabled{opacity:.6;cursor:default}
+:focus-visible{outline:3px solid var(--hi);outline-offset:2px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{font-weight:700;font-size:.9rem}
+.hint{color:var(--muted);font-size:.82rem}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.pill{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font:inherit;font-size:.9rem}
+.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.kind{font-size:.85rem;font-weight:700;color:var(--brand);margin:0 0 4px}
+.post-title{font:700 1.1rem/1.25 var(--display);margin:0 0 6px}
+.post-body{margin:0;max-width:65ch}
+.empty{color:var(--muted);padding:12px 0}
+.error{color:var(--danger);font-size:.9rem;margin:6px 0 0;min-height:1em}
+details.card summary{cursor:pointer;font-weight:700}
+details.card[open] summary{margin-bottom:14px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;z-index:10}
+#toast.show{opacity:1}
+.footnote{font-size:.82rem;color:var(--muted);margin-top:36px;border-top:1px solid var(--line);padding-top:12px}
+@media (max-width:480px){.row{grid-template-columns:1fr}.score{font-size:1.7rem}}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <div class="brandrow">
+      <h1 class="logo">Campus Connect</h1>
+      <label class="as">Viewing as <select id="me" aria-label="Viewing as student"></select></label>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="discover">Matches</button>
+      <button class="tab" role="tab" data-tab="search">Search</button>
+      <button class="tab" role="tab" data-tab="network">Network</button>
+      <button class="tab" role="tab" data-tab="board">Help board</button>
+      <button class="tab" role="tab" data-tab="profile">Profile</button>
+    </nav>
+  </div>
+</header>
+<main id="view"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   1. SAMPLE DATA  (replace with the C++ DataStore later)
+   ===================================================================== */
+const ALLOWED_DOMAINS = ["geu.ac.in", "gehu.ac.in"]; // confirm your college's real student email domains
+
+const db = {
+  students: [
+    {id:1, name:"Ananya Rawat",   email:"ananya@geu.ac.in", branch:"CSE",      year:2, skills:["C++","DSA","Web Development"], interests:["Hackathons","Open Source"]},
+    {id:2, name:"Rohan Negi",     email:"rohan@geu.ac.in",  branch:"CSE",      year:2, skills:["C++","DSA","Python"], interests:["Competitive Programming","Hackathons"]},
+    {id:3, name:"Priya Bisht",    email:"priya@geu.ac.in",  branch:"CSE (AI)", year:3, skills:["Python","Machine Learning","Data Analysis"], interests:["Research","Open Source"]},
+    {id:4, name:"Karan Thapa",    email:"karan@geu.ac.in",  branch:"IT",       year:2, skills:["JavaScript","React","Web Development"], interests:["UI Design","Hackathons"]},
+    {id:5, name:"Sneha Joshi",    email:"sneha@geu.ac.in",  branch:"ECE",      year:3, skills:["IoT","Arduino","C"], interests:["Robotics","Research"]},
+    {id:6, name:"Arjun Chauhan",  email:"arjun@geu.ac.in",  branch:"CSE",      year:1, skills:["Python","C++"], interests:["Competitive Programming","Gaming"]},
+    {id:7, name:"Meera Pant",     email:"meera@geu.ac.in",  branch:"CSE",      year:3, skills:["Figma","UI Design","JavaScript"], interests:["Design","Photography"]},
+    {id:8, name:"Vikram Rana",    email:"vikram@geu.ac.in", branch:"CSE (DS)", year:2, skills:["SQL","Python","Data Analysis"], interests:["Finance","Research"]},
+    {id:9, name:"Ishita Kandpal", email:"ishita@geu.ac.in", branch:"CSE",      year:2, skills:["Java","DSA","Spring Boot"], interests:["Open Source","Competitive Programming"]},
+    {id:10,name:"Aman Bhatt",     email:"aman@geu.ac.in",   branch:"ME",       year:3, skills:["CAD","Python","Arduino"], interests:["Robotics","Hackathons"]},
+    {id:11,name:"Diya Sharma",    email:"diya@geu.ac.in",   branch:"CSE",      year:1, skills:["HTML","CSS","JavaScript"], interests:["Web Development","Design"]},
+    {id:12,name:"Nikhil Rautela", email:"nikhil@geu.ac.in", branch:"CSE (AI)", year:3, skills:["Machine Learning","Python","Deep Learning"], interests:["Research","Hackathons"]}
+  ],
+  connections: [[1,2],[1,4],[2,6],[2,9],[4,7],[4,11],[3,12],[3,8],[5,10],[9,6],[7,11],[12,10]],
+  posts: [
+    {id:1, authorId:6, type:"request", title:"Stuck on segment trees", body:"Range updates keep giving wrong answers. Can someone walk me through lazy propagation?", tags:["DSA","C++"]},
+    {id:2, authorId:3, type:"offer",   title:"Reviewing ML project reports", body:"Happy to review evaluation sections and check for data leakage before your submission.", tags:["Machine Learning","Python"]},
+    {id:3, authorId:4, type:"project", title:"Backend developer for a hackathon team", body:"We have frontend and design covered. Need someone comfortable with APIs.", tags:["Web Development","Hackathons"]},
+    {id:4, authorId:5, type:"request", title:"Arduino serial data is garbled", body:"Readings look fine in the IDE monitor but break when read from Python.", tags:["Arduino","C"]},
+    {id:5, authorId:7, type:"offer",   title:"Figma basics, two sessions a week", body:"Short sessions for anyone building a project interface this semester.", tags:["Figma","UI Design"]}
+  ]
+};
+const nextId = {student:13, post:6};
+
+/* =====================================================================
+   2. LOGIC STAND-INS  (the real versions live in C++:
+      Graph::bfs, JaccardMatching::calculateSimilarity, Trie, Top-K heap)
+   ===================================================================== */
+const key = s => String(s).trim().toLowerCase();
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const parseList = str => [...new Map(String(str).split(",").map(x => x.trim()).filter(Boolean).map(x => [key(x), x])).values()];
+
+function findStudent(id){
+  const s = db.students.find(x => x.id === id);
+  if (!s) throw new Error(`No student with ID ${id}.`);
+  return s;
+}
+// Public shape: never send email to other users
+const publicView = s => ({id:s.id, name:s.name, branch:s.branch, year:s.year, skills:[...s.skills], interests:[...s.interests]});
+
+function neighbours(id){
+  const out = [];
+  for (const [a,b] of db.connections){ if (a === id) out.push(b); else if (b === id) out.push(a); }
+  return out;
+}
+
+// BFS with levels: dist 1 = direct connections, dist 2 = "people you may know"
+function bfsLevels(start){
+  const dist = new Map([[start,0]]), queue = [start];
+  for (let head = 0; head < queue.length; head++){
+    const cur = queue[head];
+    for (const n of neighbours(cur)){
+      if (!dist.has(n)){ dist.set(n, dist.get(cur) + 1); queue.push(n); }
+    }
+  }
+  return dist;
+}
+
+// Jaccard over skills + interests combined (same rule as JaccardMatching.cpp)
+function jaccard(a, b){
+  const label = new Map();
+  const toSet = s => new Set([...s.skills, ...s.interests].map(x => { const k = key(x); if (!label.has(k)) label.set(k, x); return k; }));
+  const A = toSet(a), B = toSet(b);
+  const shared = [...A].filter(k => B.has(k));
+  const union = new Set([...A, ...B]);
+  return {
+    score: union.size ? shared.length / union.size : 0,
+    shared: shared.map(k => label.get(k)),
+    onlyThem: [...B].filter(k => !A.has(k)).map(k => label.get(k)),
+    unionSize: union.size
+  };
+}
+
+// Prefix match on any word, like a Trie lookup
+const matchesQuery = (text, q) => { const t = key(text), k = key(q); return k && (t.startsWith(k) || t.split(/\s+/).some(w => w.startsWith(k))); };
+
+/* =====================================================================
+   3. API LAYER — the ONLY part that changes when the C++ server is ready.
+      Each function returns the same JSON the endpoint should return.
+   ===================================================================== */
+const api = {
+  // GET /api/students
+  async listStudents(){ return db.students.map(publicView); },
+
+  // GET /api/students/:id
+  async getStudent(id){ return publicView(findStudent(id)); },
+
+  // POST /api/students   body: {name,email,branch,year,skills,interests}
+  async createStudent(input){
+    const name = input.name.trim();
+    if (!name) throw new Error("Enter your name.");
+    const email = input.email.trim().toLowerCase();
+    if (!ALLOWED_DOMAINS.includes(email.split("@")[1] || ""))
+      throw new Error(`Use your college email ending in ${ALLOWED_DOMAINS.map(d => "@" + d).join(" or ")}.`);
+    if (db.students.some(s => s.email === email)) throw new Error("This email is already registered.");
+    const s = {id:nextId.student, name, email, branch:input.branch.trim() || "Not given", year:Number(input.year) || 1,
+               skills:parseList(input.skills), interests:parseList(input.interests)};
+    if (!s.skills.length && !s.interests.length) throw new Error("Add at least one skill or interest so others can find you.");
+    nextId.student++;
+    db.students.push(s);
+    return publicView(s);
+  },
+
+  // GET /api/search?q=python
+  async search(q){
+    if (!key(q)) return [];
+    return db.students.filter(s => [s.name, ...s.skills, ...s.interests].some(x => matchesQuery(x, q))).map(publicView);
+  },
+
+  // GET /api/match/:id?k=5   -> [{student, score, shared, onlyThem, unionSize}]
+  async getMatches(id, k = 5){
+    const me = findStudent(id);
+    return db.students.filter(s => s.id !== id)
+      .map(s => ({student:publicView(s), ...jaccard(me, s)}))
+      .filter(m => m.score > 0)
+      .sort((a,b) => b.score - a.score || a.student.name.localeCompare(b.student.name))
+      .slice(0, k);
+  },
+
+  // GET /api/connections/:id
+  async getConnections(id){ findStudent(id); return neighbours(id).map(n => publicView(findStudent(n))); },
+
+  // GET /api/suggestions/:id   -> [{student, mutual:[names]}]
+  async getSuggestions(id){
+    findStudent(id);
+    const mine = new Set(neighbours(id)), out = [];
+    for (const [sid, d] of bfsLevels(id)){
+      if (d === 2) out.push({student:publicView(findStudent(sid)), mutual:neighbours(sid).filter(n => mine.has(n)).map(n => findStudent(n).name)});
+    }
+    return out.sort((a,b) => b.mutual.length - a.mutual.length);
+  },
+
+  // POST /api/connections   body: {from, to}
+  async connect(from, to){
+    if (from === to) throw new Error("You can't connect with yourself.");
+    findStudent(from); findStudent(to);
+    if (neighbours(from).includes(to)) throw new Error("You're already connected.");
+    db.connections.push([from, to]);
+    return {ok:true};
+  },
+
+  // GET /api/posts?type=request
+  async listPosts(type){
+    return db.posts.filter(p => !type || p.type === type).sort((a,b) => b.id - a.id)
+      .map(p => ({...p, author:findStudent(p.authorId).name}));
+  },
+
+  // POST /api/posts   body: {authorId,type,title,body,tags}
+  async createPost(input){
+    if (!["request","offer","project"].includes(input.type)) throw new Error("Choose a post type.");
+    const title = input.title.trim();
+    if (!title) throw new Error("Give your post a title.");
+    findStudent(input.authorId);
+    const p = {id:nextId.post++, authorId:input.authorId, type:input.type, title, body:input.body.trim(), tags:parseList(input.tags)};
+    db.posts.push(p);
+    return p;
+  }
+};
+
+/* =====================================================================
+   4. USER INTERFACE
+   ===================================================================== */
+const state = {me:1, tab:"discover", filter:"", query:""};
+const main = document.getElementById("view");
+const KIND = {request:"Needs help", offer:"Offering help", project:"Project team"};
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+const meta = s => `${esc(s.branch)}, year ${s.year}`;
+const chipList = (items, isShared) => items.map(x => `<li class="chip${isShared(x) ? " shared" : ""}">${esc(x)}</li>`).join("");
+function connectButton(id, connected){
+  if (id === state.me) return `<button class="btn ghost" disabled>This is you</button>`;
+  return connected.has(id) ? `<button class="btn ghost" disabled>Connected</button>`
+                           : `<button class="btn" data-connect="${id}">Connect</button>`;
+}
+const connectedSet = async () => new Set((await api.getConnections(state.me)).map(s => s.id));
+
+const views = {
+  async discover(){
+    const [matches, connected] = await Promise.all([api.getMatches(state.me, 5), connectedSet()]);
+    const cards = matches.map(m => {
+      const pct = Math.round(m.score * 100);
+      return `<article class="card">
+        <div class="person"><div><p class="name">${esc(m.student.name)}</p><p class="meta">${meta(m.student)}</p></div>
+          <div class="score">${pct}%<small>match</small></div></div>
+        <div class="meterbar" aria-hidden="true"><span style="width:${pct}%"></span></div>
+        <ul class="chips">${chipList(m.shared, () => true)}${chipList(m.onlyThem, () => false)}</ul>
+        <p class="overlap">${m.shared.length} in common out of ${m.unionSize} skills and interests between you</p>
+        <div class="actions">${connectButton(m.student.id, connected)}</div></article>`;
+    }).join("");
+    return `<h2>Students like you</h2>
+      <p class="lede">Ranked by overlap: what you both listed, divided by everything either of you listed. Highlighted tags are shared.</p>
+      ${cards || `<p class="empty">No overlaps yet. Add more skills or interests on your profile.</p>`}`;
+  },
+
+  async search(){
+    return `<h2>Find a student</h2>
+      <p class="lede">Search by name, skill, or interest. Results update as you type.</p>
+      <div class="field"><label for="q">Search</label>
+        <input id="q" type="search" value="${esc(state.query)}" placeholder="Try python, design, or a name" autocomplete="off"></div>
+      <div id="results" aria-live="polite"></div>`;
+  },
+
+  async network(){
+    const [conns, sugg, connected] = await Promise.all([api.getConnections(state.me), api.getSuggestions(state.me), connectedSet()]);
+    const suggCards = sugg.map(s => `<article class="card">
+        <p class="name">${esc(s.student.name)}</p><p class="meta">${meta(s.student)}</p>
+        <p class="overlap">Also connected with ${s.mutual.map(esc).join(" and ")}</p>
+        <div class="actions">${connectButton(s.student.id, connected)}</div></article>`).join("");
+    const connCards = conns.map(s => `<article class="card"><p class="name">${esc(s.name)}</p><p class="meta">${meta(s)}</p>
+        <ul class="chips">${chipList([...s.skills, ...s.interests], () => false)}</ul></article>`).join("");
+    return `<h2>Your network</h2>
+      <p class="lede">People you may know are connected to someone you're already connected to.</p>
+      <h3 class="sub">People you may know</h3>
+      ${suggCards || `<p class="empty">No suggestions yet. Connect with a few students from Matches first.</p>`}
+      <h3 class="sub">Your connections (${conns.length})</h3>
+      ${connCards || `<p class="empty">You haven't connected with anyone yet.</p>`}`;
+  },
+
+  async board(){
+    const posts = await api.listPosts(state.filter);
+    const filters = [["","All"],["request","Needs help"],["offer","Offering help"],["project","Project teams"]]
+      .map(([v,l]) => `<button class="pill" data-filter="${v}" aria-pressed="${state.filter === v}">${l}</button>`).join(
