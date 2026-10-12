@@ -26,6 +26,16 @@ private:
 public:
     DataStore() : nextPostId(1) {}
 
+    void clearAll() {
+        students.clear();
+        groups.clear();
+        posts.clear();
+        skillIndex.clear();
+        interestIndex.clear();
+        departmentIndex.clear();
+        nextPostId = 1;
+    }
+
     // Student operations
     void addStudent(Student student);
     Student* findStudentById(int id);         // O(1) hash lookup
@@ -48,6 +58,11 @@ public:
 
     // Get all students (for Jaccard comparison)
     vector<Student> getAllStudents() const;
+
+    // Get all groups and posts for API layer
+    vector<Group> getAllGroups() const;
+    vector<Post> getAllPosts() const;
+    Post* findPostById(int id);
 };
 
 #endif

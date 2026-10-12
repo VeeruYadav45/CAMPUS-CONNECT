@@ -15,11 +15,15 @@ private:
     unordered_map<int, vector<int>> adjacencyList;
 
 public:
+    void clearAll() { adjacencyList.clear(); }
+
     void addStudent(int studentId);
 
     void addConnection(int studentId1, int studentId2);
 
     vector<int> bfs(int startStudentId) const;
+
+    vector<int> getConnections(int studentId) const;
 
     void display() const;
 };

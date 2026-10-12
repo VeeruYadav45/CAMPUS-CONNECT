@@ -123,3 +123,26 @@ vector<Student> DataStore::getAllStudents() const {
     }
     return result;
 }
+
+vector<Group> DataStore::getAllGroups() const {
+    vector<Group> result;
+    for (const auto& pair : groups) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+vector<Post> DataStore::getAllPosts() const {
+    vector<Post> result;
+    for (const auto& pair : posts) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
+Post* DataStore::findPostById(int id) {
+    auto it = posts.find(id);
+    if (it != posts.end()) return &it->second;
+    return nullptr;
+}
+
