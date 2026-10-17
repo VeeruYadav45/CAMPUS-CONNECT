@@ -46,6 +46,14 @@ vector<int> Graph::bfs(int startStudentId) const {
     return result;
 }
 
+vector<int> Graph::getConnections(int studentId) const {
+    auto it = adjacencyList.find(studentId);
+    if (it != adjacencyList.end()) {
+        return it->second;
+    }
+    return vector<int>();
+}
+
 void Graph::display() const {
     for (const auto& pair : adjacencyList) {
         cout << pair.first << " -> ";
