@@ -1,14 +1,27 @@
 #include "Graph.h"
+#include <algorithm>
 
 void Graph::addStudent(int studentId) {
     adjacencyList[studentId];
 }
 
 void Graph::addConnection(int studentId1, int studentId2) {
+    // A student cannot connect to themselves
+    if (studentId1 == studentId2) {
+        return;
+    }
+
     addStudent(studentId1);
     addStudent(studentId2);
 
-    adjacencyList[studentId1].push_back(studentId2);
+    // If they are already connected, do not add the connection again
+    vector<int>& list1 = adjacencyList[studentId1];
+    if (find(list1.begin(), list1.end(), studentId2) != list1.end()) {
+        return;
+    }
+
+    // Undirected graph: add the connection in both directions
+    list1.push_back(studentId2);
     adjacencyList[studentId2].push_back(studentId1);
 }
 
