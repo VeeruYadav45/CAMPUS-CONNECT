@@ -67,6 +67,53 @@ vector<int> Graph::getConnections(int studentId) const {
     return vector<int>();
 }
 
+// -------------------------------------------------------
+// peopleYouMayKnow: BFS that also remembers each student's
+// distance (number of steps) from the start student.
+//   distance 0 = the student themselves
+//   distance 1 = direct connections (already friends)
+//   distance 2 = friends of friends  -> these are suggested
+// We stop exploring after distance 2, because we never need
+// students who are further away.
+// Time: O(V + E) in the worst case.
+// -------------------------------------------------------
+vector<int> Graph::peopleYouMayKnow(int studentId) const {
+    vector<int> suggestions;
+
+    if (adjacencyList.find(studentId) == adjacencyList.end()) {
+        return suggestions;   // unknown student -> no suggestions
+    }
+
+    unordered_map<int, int> distance;   // student ID -> steps from start
+    queue<int> q;
+
+    distance[studentId] = 0;
+    q.push(studentId);
+
+    while (!q.empty()) {
+        int current = q.front();
+        q.pop();
+
+        if (distance[current] == 2) {
+            suggestions.push_back(current);
+            continue;   // don't go further than 2 steps
+        }
+
+        auto it = adjacencyList.find(current);
+        if (it == adjacencyList.end()) {
+            continue;
+        }
+
+        for (int neighbour : it->second) {
+            if (distance.find(neighbour) == distance.end()) {
+                distance[neighbour] = distance[current] + 1;
+                q.push(neighbour);
+            }
+        }
+    }
+
+    return suggestions;
+}
 
 void Graph::display() const {
     for (const auto& pair : adjacencyList) {

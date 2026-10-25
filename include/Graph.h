@@ -25,6 +25,10 @@ public:
 
     vector<int> getConnections(int studentId) const;
 
+    // "People you may know": students exactly 2 steps away
+    // (friends of friends who are not already your friends)
+    vector<int> peopleYouMayKnow(int studentId) const;
+
     void display() const;
 };
 
