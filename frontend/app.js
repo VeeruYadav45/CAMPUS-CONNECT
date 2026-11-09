@@ -62,11 +62,11 @@ function showToast(message, type = 'info') {
   }, 4000);
 }
 
-// --- Initialization & Bootstrapping ---
 document.addEventListener('DOMContentLoaded', async () => {
   setupNavigation();
   setupModals();
   setupEventListeners();
+  initMicrosoftAuth();
 
   try {
     await refreshAllData();
@@ -1061,4 +1061,139 @@ async function sendChatMessage() {
   } catch (err) {
     showToast("Failed to send message", "error");
   }
+}
+/* ==========================================================================
+   Microsoft Outlook (@geu.ac.in) Authentication Logic
+   ========================================================================== */
+const MSAL_CONFIG = {
+  auth: {
+    clientId: "690b6eff-568c-4b04-8f26-3e27c1089010",
+    authority: "https://login.microsoftonline.com/1490b17d-5dc9-4cbf-aeba-a2e854f521b8",
+    redirectUri: window.location.origin
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false
+  }
+};
+
+let msalInstance = null;
+
+function initMicrosoftAuth() {
+  if (typeof msal === "undefined") {
+    console.warn("MSAL library not loaded yet.");
+    return;
+  }
+
+  try {
+    msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+  } catch (e) {
+    console.error("Failed to initialize MSAL:", e);
+    return;
+  }
+
+  const btnLogin = document.getElementById("btn-ms-login");
+  const btnLogout = document.getElementById("btn-ms-logout");
+
+  if (btnLogin) {
+    btnLogin.addEventListener("click", handleMicrosoftLogin);
+  }
+  if (btnLogout) {
+    btnLogout.addEventListener("click", handleMicrosoftLogout);
+  }
+
+  checkExistingMsSession();
+}
+
+async function handleMicrosoftLogin() {
+  if (!msalInstance) return;
+
+  try {
+    const loginResponse = await msalInstance.loginPopup({
+      scopes: ["user.read", "openid", "profile", "email"],
+      prompt: "select_account"
+    });
+
+    const account = loginResponse.account;
+    const email = (account.username || "").toLowerCase();
+    const name = account.name || "Student";
+
+    // Verify official Graphic Era University student domain
+    if (!email.endsWith("@geu.ac.in") && !email.endsWith("@graphicera.ac.in")) {
+      showToast("Access Restricted: Please sign in with your official @geu.ac.in student email.", "error");
+      await msalInstance.logoutPopup();
+      return;
+    }
+
+    onMicrosoftAuthSuccess(name, email);
+  } catch (err) {
+    if (err.name !== "BrowserAuthError" || !err.message.includes("user_cancelled")) {
+      console.error("Microsoft login error:", err);
+      showToast("Microsoft login failed: " + (err.message || err), "error");
+    }
+  }
+}
+
+async function onMicrosoftAuthSuccess(name, email) {
+  sessionStorage.setItem("geu_student_email", email);
+  sessionStorage.setItem("geu_student_name", name);
+
+  updateMsAuthUI(name, email);
+  showToast(`Welcome, ${name}! Signed in via Graphic Era Outlook 🎓`, "success");
+
+  // Check if a student with this name already exists in DataStore
+  let matchedStudent = State.students.find(s =>
+    s.name.toLowerCase() === name.toLowerCase()
+  );
+
+  if (matchedStudent) {
+    setActiveStudent(matchedStudent.id);
+  } else {
+    // If first time logging in, auto-create a verified student profile
+    try {
+      const newStudent = await API.post("/api/students", {
+        name: name,
+        department: "CSE",
+        year: 2,
+        skills: ["C++", "Python", "DSA"],
+        interests: ["Web Dev", "AI"]
+      });
+      await refreshAllData();
+      setActiveStudent(newStudent.id);
+      showToast(`Verified student profile created for ${name}!`, "info");
+    } catch (e) {
+      console.warn("Could not auto-register student profile:", e);
+    }
+  }
+}
+
+function checkExistingMsSession() {
+  const savedEmail = sessionStorage.getItem("geu_student_email");
+  const savedName = sessionStorage.getItem("geu_student_name");
+  if (savedEmail && savedName) {
+    updateMsAuthUI(savedName, savedEmail);
+  }
+}
+
+function updateMsAuthUI(name, email) {
+  const btnLogin = document.getElementById("btn-ms-login");
+  const profileDiv = document.getElementById("ms-user-profile");
+  const nameSpan = document.getElementById("ms-user-name");
+
+  if (btnLogin) btnLogin.style.display = "none";
+  if (profileDiv) profileDiv.style.display = "inline-flex";
+  if (nameSpan) nameSpan.textContent = name;
+}
+
+function handleMicrosoftLogout() {
+  sessionStorage.removeItem("geu_student_email");
+  sessionStorage.removeItem("geu_student_name");
+
+  const btnLogin = document.getElementById("btn-ms-login");
+  const profileDiv = document.getElementById("ms-user-profile");
+
+  if (btnLogin) btnLogin.style.display = "inline-flex";
+  if (profileDiv) profileDiv.style.display = "none";
+
+  showToast("Signed out of Graphic Era Outlook.", "info");
 }

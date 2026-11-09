@@ -42,7 +42,8 @@
 
 
   <script src="https://d3js.org/d3.v7.min.js"></script>
-
+  <!-- Microsoft Authentication Library (MSAL) -->
+  <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
 
 </head>
 
@@ -129,6 +130,27 @@
       </button>
 
 
+    </div>
+    <!-- Microsoft Outlook SSO for GEU -->
+    <div class="nav-ms-auth" id="ms-auth-container">
+      <button id="btn-ms-login" class="btn-ms-login" type="button" title="Sign in with Graphic Era Outlook">
+        <svg width="18" height="18" viewBox="0 0 21 21">
+          <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+          <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+          <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+        </svg>
+        <span>Sign in with GEU Outlook</span>
+      </button>
+
+      <div id="ms-user-profile" class="ms-user-profile" style="display:none;">
+        <div class="ms-badge">
+          <span class="ms-dot"></span>
+          <span id="ms-user-name">Student</span>
+          <span class="ms-domain-pill">@geu.ac.in</span>
+        </div>
+        <button id="btn-ms-logout" class="btn btn-sm btn-ghost" type="button" title="Sign out">Sign Out</button>
+      </div>
     </div>
 
 

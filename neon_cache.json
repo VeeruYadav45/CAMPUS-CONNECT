@@ -158,6 +158,13 @@
       "receiver_id": 2,
       "content": "Hello Neon Cloud",
       "timestamp": "2026-11-09 17:16:19"
+    },
+    {
+      "id": 2,
+      "sender_id": 1,
+      "receiver_id": 2,
+      "content": "hi",
+      "timestamp": "2026-11-09 17:24:37"
     }
   ]
 }
