@@ -1,0 +1,163 @@
+{
+  "students": [
+    {
+      "id": 1,
+      "name": "Tanvay Jain",
+      "skills": [
+        "C++",
+        "Python",
+        "DSA"
+      ],
+      "interests": [
+        "AI",
+        "Web Dev"
+      ],
+      "branch": "CSE",
+      "year": 2
+    },
+    {
+      "id": 2,
+      "name": "Ravi Kumar",
+      "skills": [
+        "Python",
+        "C++",
+        "ML"
+      ],
+      "interests": [
+        "AI",
+        "Data Science"
+      ],
+      "branch": "CSE",
+      "year": 2
+    },
+    {
+      "id": 3,
+      "name": "Priya Sharma",
+      "skills": [
+        "Java",
+        "Python",
+        "Web Dev"
+      ],
+      "interests": [
+        "Web Dev",
+        "Open Source"
+      ],
+      "branch": "CSE",
+      "year": 3
+    },
+    {
+      "id": 4,
+      "name": "Ankit Singh",
+      "skills": [
+        "C++",
+        "Embedded",
+        "IoT"
+      ],
+      "interests": [
+        "Robotics",
+        "IoT"
+      ],
+      "branch": "ECE",
+      "year": 2
+    },
+    {
+      "id": 5,
+      "name": "Neha Gupta",
+      "skills": [
+        "Python",
+        "DSA",
+        "ML"
+      ],
+      "interests": [
+        "AI",
+        "Competitive Programming"
+      ],
+      "branch": "CSE",
+      "year": 2
+    },
+    {
+      "id": 6,
+      "name": "Arjun Mehta",
+      "skills": [
+        "C++",
+        "DSA",
+        "Python"
+      ],
+      "interests": [
+        "Competitive Programming",
+        "AI"
+      ],
+      "branch": "CSE",
+      "year": 3
+    },
+    {
+      "id": 7,
+      "name": "Sanya Verma",
+      "skills": [
+        "Java",
+        "Spring",
+        "SQL"
+      ],
+      "interests": [
+        "Backend Dev",
+        "Cloud"
+      ],
+      "branch": "IT",
+      "year": 3
+    },
+    {
+      "id": 8,
+      "name": "Karan Patel",
+      "skills": [
+        "C++",
+        "DSA",
+        "System Design"
+      ],
+      "interests": [
+        "AI",
+        "Open Source"
+      ],
+      "branch": "CSE",
+      "year": 2
+    },
+    {
+      "id": 9,
+      "name": "Ishita Rao",
+      "skills": [
+        "Python",
+        "ML",
+        "Data Science"
+      ],
+      "interests": [
+        "AI",
+        "Research"
+      ],
+      "branch": "CSE",
+      "year": 3
+    },
+    {
+      "id": 10,
+      "name": "Aditya Verma",
+      "skills": [
+        "Java",
+        "Web Dev",
+        "React"
+      ],
+      "interests": [
+        "Web Dev",
+        "Cloud"
+      ],
+      "branch": "IT",
+      "year": 2
+    }
+  ],
+  "messages": [
+    {
+      "id": 1,
+      "sender_id": 1,
+      "receiver_id": 2,
+      "content": "Hello Neon Cloud",
+      "timestamp": "2026-11-09 17:16:19"
+    }
+  ]
+}

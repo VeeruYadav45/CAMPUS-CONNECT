@@ -13,6 +13,8 @@
 #include "include/student.h"
 #include "include/Message.h"
 #include <iostream>
+#include <fstream>
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <ctime>
@@ -54,7 +56,72 @@ struct ProjectGroupMeta {
     int linkedPostId;
 };
 static unordered_map<int, ProjectGroupMeta> projectGroupMetaMap;
+// Helper: Load data from Neon Cloud database
+static bool loadFromNeon() {
+    ifstream file("neon_cache.json");
+    if (!file.is_open()) return false;
+    
+    try {
+        json j;
+        file >> j;
+        if (!j.contains("students") || j["students"].empty()) return false;
 
+        store.clearAll();
+        graph.clearAll();
+        projectPostMetaMap.clear();
+        projectGroupMetaMap.clear();
+
+        int maxStudentId = 0;
+        for (const auto &item : j["students"]) {
+            int id = item["id"];
+            string name = item["name"];
+            vector<string> skills = item.value("skills", vector<string>{});
+            vector<string> interests = item.value("interests", vector<string>{});
+            string branch = item.value("branch", "CSE");
+            int year = item.value("year", 1);
+
+            Student s(id, name, skills, interests, branch, year);
+            store.addStudent(s);
+            graph.addStudent(id);
+            if (id > maxStudentId) maxStudentId = id;
+        }
+        nextStudentId = maxStudentId + 1;
+
+        if (j.contains("messages")) {
+            for (const auto &mItem : j["messages"]) {
+                int id = mItem["id"];
+                int sId = mItem["sender_id"];
+                int rId = mItem["receiver_id"];
+                string content = mItem["content"];
+                string timeStr = mItem.value("timestamp", getCurrentTime());
+                Student *s = store.findStudentById(sId);
+                string sName = s ? s->getName() : "Student";
+                Message msg(id, sId, rId, sName, content, timeStr);
+                store.addMessage(msg);
+            }
+        }
+
+        // Add default graph connections
+        graph.addConnection(1, 2);
+        graph.addConnection(1, 5);
+        graph.addConnection(2, 5);
+        graph.addConnection(2, 6);
+        graph.addConnection(3, 7);
+        graph.addConnection(5, 6);
+        graph.addConnection(5, 8);
+        graph.addConnection(6, 8);
+        graph.addConnection(4, 1);
+        graph.addConnection(2, 9);
+        graph.addConnection(3, 10);
+        graph.addConnection(7, 10);
+
+        cout << "[Neon Cloud] Successfully loaded " << j["students"].size() << " students and " 
+             << (j.contains("messages") ? j["messages"].size() : 0) << " messages from PostgreSQL." << endl;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
 // Helper: Seed demo data silently
 static void loadDemoData() {
     store.clearAll();
@@ -885,9 +952,13 @@ int main() {
             if (!sender) return sendJsonError(res, "Sender student not found", 404);
             if (!receiver) return sendJsonError(res, "Receiver student not found", 404);
 
-            int msgId = store.getNextMessageId();
+                        int msgId = store.getNextMessageId();
             Message msg(msgId, senderId, receiverId, sender->getName(), content, getCurrentTime());
             store.addMessage(msg);
+
+            // Persist message to Neon Cloud
+            string cmd = "python db_sync.py add_message " + to_string(senderId) + " " + to_string(receiverId) + " \"" + content + "\"";
+            system(cmd.c_str());
 
             sendJsonOk(res, messageToJson(msg));
         } catch (const exception &e) {
@@ -932,8 +1003,11 @@ int main() {
     // Serve static files from frontend/ directory
     svr.set_mount_point("/", "./frontend");
 
-    // Pre-populate store with 10 sample students on server startup
-    loadDemoData();
+      // Pre-populate store from Neon PostgreSQL Cloud (fallback to demo data if offline)
+    if (!loadFromNeon()) {
+        cout << "[DataStore] Initializing local demo data..." << endl;
+        loadDemoData();
+    }
 
     cout << "============================================" << endl;
     cout << "  CAMPUS-CONNECT HTTP API Server Starting  " << endl;
