@@ -1,12 +1,6 @@
 #include "../include/ProjectPost.h"
 #include <iostream>
 using namespace std;
-
-// -------------------------------------------------------
-// ProjectPost constructor
-// Calls the base Post constructor with a descriptive content
-// string, then sets the project-specific fields.
-// -------------------------------------------------------
 ProjectPost::ProjectPost(int postId, int authorId, string authorName,
                          string projectTitle, vector<string> requiredSkills,
                          int teamSizeNeeded, string timestamp)
@@ -17,17 +11,12 @@ ProjectPost::ProjectPost(int postId, int authorId, string authorName,
       requiredSkills(requiredSkills),
       teamSizeNeeded(teamSizeNeeded) {}
 
-// Getters
+
 string ProjectPost::getProjectTitle() const { return projectTitle; }
 vector<string> ProjectPost::getRequiredSkills() const { return requiredSkills; }
 int ProjectPost::getTeamSizeNeeded() const { return teamSizeNeeded; }
 
-// -------------------------------------------------------
-// display() override: Shows all base Post info plus
-// project-specific details (title, skills, team size).
-// This demonstrates polymorphism — if a Post* points to
-// a ProjectPost, calling display() runs THIS version.
-// -------------------------------------------------------
+
 void ProjectPost::display() const {
     cout << "========= PROJECT POST =========" << endl;
     cout << "Post ID    : " << postId << endl;

@@ -76,7 +76,7 @@ make
 ./campus_connect.exe
 ```
 
-Then select option **20** to run the full automated demo with 8 sample students.
+Then select option **20** to run the full automated demo with 10 sample students.
 
 Or pipe the demo input:
 ```bash

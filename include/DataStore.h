@@ -1,6 +1,6 @@
 #ifndef DATASTORE_H
 #define DATASTORE_H
-
+#include "Message.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -11,21 +11,17 @@ using namespace std;
 
 class DataStore {
 private:
-    // Hash maps: key = ID, value = object (O(1) lookup)
-    unordered_map<int, Student> students;        // studentId → Student
-    unordered_map<int, Group>   groups;          // groupId   → Group
-    unordered_map<int, Post>    posts;           // postId    → Post
-
-    // Inverted index maps for fast search (O(1) average)
-    unordered_map<string, vector<int>> skillIndex;       // skill      → [studentIds]
-    unordered_map<string, vector<int>> interestIndex;    // interest   → [studentIds]
-    unordered_map<string, vector<int>> departmentIndex;  // department → [studentIds]
-
+    unordered_map<int, Student> students;
+    unordered_map<int, Group>groups;
+    unordered_map<int, Post>posts;
+    unordered_map<string, vector<int>> skillIndex;
+    unordered_map<string, vector<int>> interestIndex;
+    unordered_map<string, vector<int>> departmentIndex;
     int nextPostId;
-
+    vector<Message> messages;
+    int nextMessageId;
 public:
-    DataStore() : nextPostId(1) {}
-
+    DataStore() : nextPostId(1), nextMessageId(1) {}
     void clearAll() {
         students.clear();
         groups.clear();
@@ -34,35 +30,29 @@ public:
         interestIndex.clear();
         departmentIndex.clear();
         nextPostId = 1;
+        messages.clear();
+        nextMessageId = 1;
     }
-
-    // Student operations
     void addStudent(Student student);
-    Student* findStudentById(int id);         // O(1) hash lookup
+    Student* findStudentById(int id);
     void displayAllStudents() const;
-
-    // Group operations
     void addGroup(Group group);
-    Group* findGroupById(int id);             // O(1) hash lookup
+    Group* findGroupById(int id);
     void displayAllGroups() const;
-
-    // Post operations
     void addPost(Post post);
     void displayAllPosts() const;
     int getNextPostId();
-
-    // Search using inverted index (O(1) average)
     vector<Student> matchBySkill(string skill);
     vector<Student> matchByInterest(string interest);
     vector<Student> matchByDepartment(string department);
-
-    // Get all students (for Jaccard comparison)
     vector<Student> getAllStudents() const;
-
-    // Get all groups and posts for API layer
     vector<Group> getAllGroups() const;
     vector<Post> getAllPosts() const;
     Post* findPostById(int id);
+    void addMessage(Message message);
+    vector<Message> getConversation(int studentA, int studentB) const;
+    vector<int> getChatPartners(int studentId) const;
+    int getNextMessageId();
+    vector<Message> getAllMessages() const;
 };
-
 #endif

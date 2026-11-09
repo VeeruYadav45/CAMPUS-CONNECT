@@ -12,7 +12,9 @@ const State = {
   projectPosts: [],
   feedPosts: [],
   selectedProjectId: null,
-  d3Simulation: null
+  d3Simulation: null,
+  selectedChatPartnerId: null,
+  chatPollTimer: null
 };
 
 // --- API Helpers ---
@@ -96,6 +98,14 @@ function setupNavigation() {
         renderNetworkGraph();
         updateMutualsPanel();
       }
+      if (targetTab === 'messages') {
+        initChatTab();
+      } else {
+        if (State.chatPollTimer) {
+          clearInterval(State.chatPollTimer);
+          State.chatPollTimer = null;
+        }
+      }
     });
   });
 }
@@ -113,7 +123,9 @@ function setActiveStudent(id) {
     if (avatar) avatar.innerText = current.name.charAt(0);
     if (nameEl) nameEl.innerText = `${current.name} (${current.department})`;
   }
-
+  if (document.getElementById('tab-messages')?.classList.contains('active')) {
+    initChatTab();
+  }
   // Update dependent views
   renderStudentsGrid();
   if (document.getElementById('tab-network').classList.contains('active')) {
@@ -172,7 +184,7 @@ function populateSelectDropdowns() {
   const projLeader = document.getElementById('proj-leader');
   const grpAdmin = document.getElementById('grp-admin');
 
-  const optionsHtml = State.students.map(s => 
+  const optionsHtml = State.students.map(s =>
     `<option value="${s.id}">#${s.id} ${escapeHtml(s.name)} (${s.department} Y${s.year})</option>`
   ).join('');
 
@@ -213,7 +225,7 @@ async function renderStudentsGrid() {
     const matchesDept = !deptFilter || s.department === deptFilter;
     const skillsText = (s.skills || []).join(' ').toLowerCase();
     const interestsText = (s.interests || []).join(' ').toLowerCase();
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       s.name.toLowerCase().includes(searchTerm) ||
       s.department.toLowerCase().includes(searchTerm) ||
       skillsText.includes(searchTerm) ||
@@ -271,7 +283,7 @@ async function renderStudentsGrid() {
   }).join('');
 }
 
-window.connectWithStudent = async function(targetId) {
+window.connectWithStudent = async function (targetId) {
   if (!State.activeStudentId) return;
   try {
     await API.post('/api/connections', {
@@ -452,7 +464,7 @@ function renderProjectPostsList() {
   }).join('');
 }
 
-window.selectProjectPost = async function(projectId) {
+window.selectProjectPost = async function (projectId) {
   State.selectedProjectId = projectId;
   renderProjectPostsList();
 
@@ -510,16 +522,16 @@ window.selectProjectPost = async function(projectId) {
     </div>
 
     <div class="candidate-cards-grid" id="candidates-grid">
-      ${topKResults.length === 0 ? `<div class="empty-state-card w-full">No candidates found matching skills.</div>` : 
-        topKResults.map((c, idx) => {
-          const sId = c.studentId || (c.student ? c.student.id : 0);
-          const studentObj = c.student || State.students.find(s => s.id === sId) || {};
-          const sName = c.name || studentObj.name || ('Student #' + sId);
-          const sDept = c.department || studentObj.department || 'General';
-          const sYear = c.year || studentObj.year || 1;
-          const sSkills = (studentObj.skills && studentObj.skills.length) ? studentObj.skills : (c.matchedSkills || []);
-          const matchPercent = (c.score * 100).toFixed(0);
-          return `
+      ${topKResults.length === 0 ? `<div class="empty-state-card w-full">No candidates found matching skills.</div>` :
+      topKResults.map((c, idx) => {
+        const sId = c.studentId || (c.student ? c.student.id : 0);
+        const studentObj = c.student || State.students.find(s => s.id === sId) || {};
+        const sName = c.name || studentObj.name || ('Student #' + sId);
+        const sDept = c.department || studentObj.department || 'General';
+        const sYear = c.year || studentObj.year || 1;
+        const sSkills = (studentObj.skills && studentObj.skills.length) ? studentObj.skills : (c.matchedSkills || []);
+        const matchPercent = (c.score * 100).toFixed(0);
+        return `
             <div class="candidate-card selected-for-team" id="candidate-card-${sId}" data-id="${sId}">
               <div class="candidate-rank-badge">Rank #${idx + 1}</div>
               <div class="student-name">${escapeHtml(sName)}</div>
@@ -547,13 +559,13 @@ window.selectProjectPost = async function(projectId) {
               </div>
             </div>
           `;
-        }).join('')
-      }
+      }).join('')
+    }
     </div>
   `;
 };
 
-window.createGroupFromTopK = async function(projectId) {
+window.createGroupFromTopK = async function (projectId) {
   const project = State.projectPosts.find(p => p.id === projectId);
   if (!project) return;
 
@@ -625,26 +637,26 @@ function renderGroupsGrid() {
   }).join('');
 }
 
-window.joinGroup = async function(groupId) {
+window.joinGroup = async function (groupId) {
   if (!State.activeStudentId) return;
   try {
     await API.post(`/api/groups/${groupId}/join`, { studentId: State.activeStudentId });
     showToast("Successfully joined group!", "success");
     await refreshAllData();
-  } catch (e) {}
+  } catch (e) { }
 };
 
-window.leaveGroup = async function(groupId) {
+window.leaveGroup = async function (groupId) {
   if (!State.activeStudentId) return;
   try {
     await API.post(`/api/groups/${groupId}/leave`, { studentId: State.activeStudentId });
     showToast("Left group.", "info");
     await refreshAllData();
-  } catch (e) {}
+  } catch (e) { }
 };
 
 let currentModalGroupId = null;
-window.openGroupDiscussion = async function(groupId) {
+window.openGroupDiscussion = async function (groupId) {
   currentModalGroupId = groupId;
   const group = State.groups.find(g => g.id === groupId);
   if (!group) return;
@@ -685,7 +697,7 @@ async function refreshGroupPosts(groupId) {
         </div>
       `;
     }).join('');
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // --- TAB 5: Campus Feed ---
@@ -755,7 +767,7 @@ function setupEventListeners() {
       await API.post('/api/demo/load', {});
       showToast("Demo dataset loaded successfully!", "success");
       await refreshAllData();
-    } catch (e) {}
+    } catch (e) { }
   });
 
   // Search & filter directory
@@ -781,7 +793,7 @@ function setupEventListeners() {
           </div>
         `;
       }
-    } catch (e) {}
+    } catch (e) { }
   });
 
   // Form: Register Student
@@ -806,7 +818,7 @@ function setupEventListeners() {
       e.target.reset();
       await refreshAllData();
       setActiveStudent(newStudent.id);
-    } catch (err) {}
+    } catch (err) { }
   });
 
   // Form: Add Connection
@@ -827,7 +839,7 @@ function setupEventListeners() {
       if (document.getElementById('tab-network').classList.contains('active')) {
         renderNetworkGraph();
       }
-    } catch (err) {}
+    } catch (err) { }
   });
 
   // Form: Create Project
@@ -850,7 +862,7 @@ function setupEventListeners() {
       e.target.reset();
       await refreshAllData();
       selectProjectPost(post.id);
-    } catch (err) {}
+    } catch (err) { }
   });
 
   // Form: Create Group
@@ -870,7 +882,7 @@ function setupEventListeners() {
       document.getElementById('modal-create-group').classList.add('hidden');
       e.target.reset();
       await refreshAllData();
-    } catch (err) {}
+    } catch (err) { }
   });
 
   // Feed: Submit post
@@ -889,8 +901,9 @@ function setupEventListeners() {
       const posts = await API.get('/api/posts');
       State.feedPosts = posts || [];
       renderFeedTimeline();
-    } catch (e) {}
+    } catch (e) { }
   });
+
 
   // Group discussion submit post
   document.getElementById('btn-submit-group-post')?.addEventListener('click', async () => {
@@ -905,7 +918,12 @@ function setupEventListeners() {
       });
       input.value = '';
       await refreshGroupPosts(currentModalGroupId);
-    } catch (e) {}
+    } catch (e) { }
+  });
+  // Direct Message form submit
+  document.getElementById('chat-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await sendChatMessage();
   });
 }
 
@@ -918,4 +936,129 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+// ==========================================================================
+// Direct Messaging / Chat Logic
+// ==========================================================================
+
+function initChatTab() {
+  renderChatContacts();
+
+  // Default to first contact if none selected
+  const contacts = State.students.filter(s => s.id !== State.activeStudentId);
+  if (contacts.length > 0 && !State.selectedChatPartnerId) {
+    selectChatPartner(contacts[0].id);
+  } else if (State.selectedChatPartnerId) {
+    selectChatPartner(State.selectedChatPartnerId);
+  }
+}
+
+function renderChatContacts() {
+  const container = document.getElementById('chat-partners-list');
+  if (!container) return;
+
+  const contacts = State.students.filter(s => s.id !== State.activeStudentId);
+
+  if (contacts.length === 0) {
+    container.innerHTML = '<p class="text-muted small" style="padding:1rem;">No other students available</p>';
+    return;
+  }
+
+  container.innerHTML = contacts.map(c => `
+    <div class="chat-partner-item ${c.id === State.selectedChatPartnerId ? 'active' : ''}" 
+         onclick="selectChatPartner(${c.id})">
+      <div class="avatar">${escapeHtml(c.name.charAt(0))}</div>
+      <div class="details">
+        <div class="name">${escapeHtml(c.name)}</div>
+        <div class="dept">${escapeHtml(c.department)} &bull; Year ${c.year}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function selectChatPartner(partnerId) {
+  State.selectedChatPartnerId = parseInt(partnerId);
+  renderChatContacts();
+
+  const partner = State.students.find(s => s.id === State.selectedChatPartnerId);
+  if (!partner) return;
+
+  // Update header
+  const nameEl = document.getElementById('chat-partner-name');
+  const subEl = document.getElementById('chat-partner-sub');
+  const avatarEl = document.getElementById('chat-partner-avatar');
+
+  if (nameEl) nameEl.innerText = partner.name;
+  if (subEl) subEl.innerText = `${partner.department} (Year ${partner.year}) &bull; ${partner.skills.join(', ')}`;
+  if (avatarEl) avatarEl.innerText = partner.name.charAt(0);
+
+  // Load messages
+  await loadConversation();
+
+  // Poll for new messages every 3 seconds while on chat
+  if (State.chatPollTimer) clearInterval(State.chatPollTimer);
+  State.chatPollTimer = setInterval(loadConversation, 3000);
+}
+
+async function loadConversation() {
+  if (!State.activeStudentId || !State.selectedChatPartnerId) return;
+
+  const thread = document.getElementById('chat-messages-thread');
+  if (!thread) return;
+
+  try {
+    const messages = await API.get(`/api/messages/conversation?user1=${State.activeStudentId}&user2=${State.selectedChatPartnerId}`);
+
+    if (!messages || messages.length === 0) {
+      thread.innerHTML = `
+        <div class="chat-empty-state">
+          <p>No messages yet. Say hello to start the conversation! 👋</p>
+        </div>
+      `;
+      return;
+    }
+
+    const wasAtBottom = thread.scrollHeight - thread.clientHeight <= thread.scrollTop + 40;
+
+    thread.innerHTML = messages.map(m => {
+      const isSent = m.senderId === State.activeStudentId;
+      return `
+        <div class="message-bubble ${isSent ? 'sent' : 'received'}">
+          <div class="msg-content">${escapeHtml(m.content)}</div>
+          <div class="msg-meta">${escapeHtml(m.timestamp)}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Auto-scroll to bottom on first load or if already at bottom
+    if (wasAtBottom || messages.length > 0) {
+      thread.scrollTop = thread.scrollHeight;
+    }
+  } catch (err) {
+    console.error("Failed to load conversation:", err);
+  }
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const content = input?.value.trim();
+
+  if (!content) return;
+  if (!State.activeStudentId || !State.selectedChatPartnerId) {
+    showToast("Select a contact to chat with first", "warning");
+    return;
+  }
+
+  try {
+    await API.post('/api/messages', {
+      senderId: State.activeStudentId,
+      receiverId: State.selectedChatPartnerId,
+      content
+    });
+
+    input.value = '';
+    await loadConversation();
+  } catch (err) {
+    showToast("Failed to send message", "error");
+  }
 }

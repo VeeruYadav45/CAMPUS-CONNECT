@@ -11,7 +11,7 @@
 #include "include/TopKRanker.h"
 #include "include/post.h"
 #include "include/student.h"
-
+#include "include/Message.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -64,7 +64,7 @@ static void loadDemoData() {
     projectPostMetaMap.clear();
     projectGroupMetaMap.clear();
 
-    // 8 Sample students
+    // 10 Sample students
     Student s1(nextStudentId++, "Tanvay Jain", {"C++", "Python", "DSA"}, {"AI", "Web Dev"}, "CSE", 2);
     store.addStudent(s1);
     graph.addStudent(s1.getId());
@@ -97,12 +97,27 @@ static void loadDemoData() {
     store.addStudent(s8);
     graph.addStudent(s8.getId());
 
+    Student s9(nextStudentId++, "Ishita Rao", {"Python", "ML", "Data Science"}, {"AI", "Research"}, "CSE", 3);
+    store.addStudent(s9);
+    graph.addStudent(s9.getId());
+
+    Student s10(nextStudentId++, "Aditya Verma", {"Java", "Web Dev", "React"}, {"Web Dev", "Cloud"}, "IT", 2);
+    store.addStudent(s10);
+    graph.addStudent(s10.getId());
+
     // Posts
     Post regularPost(store.getNextPostId(), s1.getId(), s1.getName(),
                      "Hello everyone! Excited to connect on Campus-Connect!",
                      getCurrentTime());
     store.addPost(regularPost);
+        // Sample direct messages
+    Message m1(store.getNextMessageId(), s1.getId(), s2.getId(), s1.getName(),
+               "Hey Ravi! Are you interested in collaborating on the AI project?", getCurrentTime());
+    store.addMessage(m1);
 
+    Message m2(store.getNextMessageId(), s2.getId(), s1.getId(), s2.getName(),
+               "Hey Tanvay! Definitely, let's team up. I have experience with Python and ML.", getCurrentTime());
+    store.addMessage(m2);
     int ppId = store.getNextPostId();
     ProjectPost projPost(ppId, s1.getId(), s1.getName(),
                          "AI Study Group Project", {"Python", "ML", "DSA"}, 3,
@@ -120,6 +135,9 @@ static void loadDemoData() {
     graph.addConnection(s5.getId(), s8.getId());
     graph.addConnection(s6.getId(), s8.getId());
     graph.addConnection(s4.getId(), s1.getId());
+    graph.addConnection(s2.getId(), s9.getId());
+    graph.addConnection(s3.getId(), s10.getId());
+    graph.addConnection(s7.getId(), s10.getId());
 
     // ProjectGroup
     int pgId = nextGroupId++;
@@ -222,6 +240,18 @@ static json groupToJson(const Group &g) {
     } else {
         j["isProjectGroup"] = false;
     }
+    return j;
+}
+static json messageToJson(const Message &m) {
+    json j;
+    j["id"] = m.getMessageId();
+    j["senderId"] = m.getSenderId();
+    j["receiverId"] = m.getReceiverId();
+    j["senderName"] = m.getSenderName();
+    Student *rec = store.findStudentById(m.getReceiverId());
+    j["receiverName"] = rec ? rec->getName() : "Unknown";
+    j["content"] = m.getContent();
+    j["timestamp"] = m.getTimestamp();
     return j;
 }
 
@@ -828,15 +858,82 @@ int main() {
         std::lock_guard<std::mutex> lock(serverMutex);
         loadDemoData();
         json data;
-        data["message"] = "Demo data loaded successfully (8 students, posts, connections, project group)";
+        data["message"] = "Demo data loaded successfully (10 students, posts, connections, project group)";
         data["studentCount"] = store.getAllStudents().size();
         data["groupCount"] = store.getAllGroups().size();
         data["postCount"] = store.getAllPosts().size();
         sendJsonOk(res, data);
     });
+        // 21. POST /api/messages - Send a direct message
+    svr.Post("/api/messages", [](const httplib::Request &req, httplib::Response &res) {
+        std::lock_guard<std::mutex> lock(serverMutex);
+        try {
+            auto body = json::parse(req.body);
+            if (!body.contains("senderId") || !body.contains("receiverId") || !body.contains("content")) {
+                return sendJsonError(res, "Missing senderId, receiverId, or content");
+            }
+
+            int senderId = body["senderId"].get<int>();
+            int receiverId = body["receiverId"].get<int>();
+            string content = body["content"].get<string>();
+
+            if (content.empty()) return sendJsonError(res, "Message content cannot be empty");
+
+            Student *sender = store.findStudentById(senderId);
+            Student *receiver = store.findStudentById(receiverId);
+
+            if (!sender) return sendJsonError(res, "Sender student not found", 404);
+            if (!receiver) return sendJsonError(res, "Receiver student not found", 404);
+
+            int msgId = store.getNextMessageId();
+            Message msg(msgId, senderId, receiverId, sender->getName(), content, getCurrentTime());
+            store.addMessage(msg);
+
+            sendJsonOk(res, messageToJson(msg));
+        } catch (const exception &e) {
+            sendJsonError(res, string("Invalid request: ") + e.what());
+        }
+    });
+
+    // 22. GET /api/messages/conversation?user1=X&user2=Y - Get chat history
+    svr.Get("/api/messages/conversation", [](const httplib::Request &req, httplib::Response &res) {
+        std::lock_guard<std::mutex> lock(serverMutex);
+        if (!req.has_param("user1") || !req.has_param("user2")) {
+            return sendJsonError(res, "Missing user1 or user2 parameter");
+        }
+
+        int u1 = stoi(req.get_param_value("user1"));
+        int u2 = stoi(req.get_param_value("user2"));
+
+        vector<Message> conv = store.getConversation(u1, u2);
+        json arr = json::array();
+        for (const auto &m : conv) {
+            arr.push_back(messageToJson(m));
+        }
+        sendJsonOk(res, arr);
+    });
+
+    // 23. GET /api/messages/partners/:studentId - Get list of students chatted with
+    svr.Get(R"(/api/messages/partners/(\d+))", [](const httplib::Request &req, httplib::Response &res) {
+        std::lock_guard<std::mutex> lock(serverMutex);
+        int sId = stoi(req.matches[1]);
+        vector<int> partnerIds = store.getChatPartners(sId);
+
+        json arr = json::array();
+        for (int pId : partnerIds) {
+            Student *s = store.findStudentById(pId);
+            if (s) {
+                arr.push_back(studentToJson(*s));
+            }
+        }
+        sendJsonOk(res, arr);
+    });
 
     // Serve static files from frontend/ directory
     svr.set_mount_point("/", "./frontend");
+
+    // Pre-populate store with 10 sample students on server startup
+    loadDemoData();
 
     cout << "============================================" << endl;
     cout << "  CAMPUS-CONNECT HTTP API Server Starting  " << endl;

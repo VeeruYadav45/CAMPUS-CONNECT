@@ -1,0 +1,108 @@
+/* ==========================================================================
+   Cat Companion Interactive Widget
+   ========================================================================== */
+
+.cat-companion-wrapper {
+  position: fixed;
+  bottom: 6px;
+  left: 0;
+  width: 60px;
+  height: 50px;
+  z-index: 99999;
+  user-select: none;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.cat-sprite {
+  width: 100%;
+  height: 100%;
+  background-image: url('cat_normalized.png');
+  background-size: 360px 150px; /* 6 cols * 60px, 3 rows * 50px */
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  transform-origin: center bottom;
+  transition: transform 0.12s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Flipped when moving/facing right */
+.cat-sprite.facing-right {
+  transform: scaleX(-1);
+}
+
+.cat-speech-bubble {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  color: #f8fafc;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+
+.cat-speech-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 4px;
+  border-style: solid;
+  border-color: rgba(99, 102, 241, 0.5) transparent transparent transparent;
+}
+
+.cat-speech-bubble.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Click target ripple indicator */
+.cat-target-indicator {
+  position: fixed;
+  bottom: 6px;
+  width: 26px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.35);
+  border: 1px dashed rgba(168, 85, 247, 0.8);
+  pointer-events: none;
+  z-index: 99998;
+  transform: translateX(-50%);
+  animation: catTargetPulse 0.6s infinite alternate ease-in-out;
+}
+
+@keyframes catTargetPulse {
+  from { transform: translateX(-50%) scale(0.85); opacity: 0.4; }
+  to { transform: translateX(-50%) scale(1.25); opacity: 0.95; }
+}
+
+/* Floating heart / meow reaction */
+.cat-floating-reaction {
+  position: fixed;
+  font-size: 18px;
+  pointer-events: none;
+  z-index: 100000;
+  animation: catFloatUp 1s ease-out forwards;
+}
+
+@keyframes catFloatUp {
+  0% { opacity: 1; transform: translateY(0) scale(0.7); }
+  50% { transform: translateY(-22px) scale(1.3); }
+  100% { opacity: 0; transform: translateY(-44px) scale(1); }
+}
+

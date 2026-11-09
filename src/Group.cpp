@@ -3,13 +3,11 @@
 #include <algorithm>
 using namespace std;
 
-// Constructor
 Group::Group(int groupId, string groupName, string description, int adminId)
     : groupId(groupId), groupName(groupName), description(description), adminId(adminId) {
-    memberIds.push_back(adminId); // Admin is automatically a member
+    memberIds.push_back(adminId); 
 }
 
-// Getters
 int Group::getGroupId() const { return groupId; }
 string Group::getGroupName() const { return groupName; }
 string Group::getDescription() const { return description; }

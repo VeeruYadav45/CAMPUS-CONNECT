@@ -1,25 +1,24 @@
 #include "../include/DataStore.h"
 #include <iostream>
+#include <algorithm>
 using namespace std;
 void DataStore::addStudent(Student student) {
     int id = student.getId();
     students[id] = student;
-    // Build invertedindex for skills
     for (const string& skill : student.getSkills()) {
         skillIndex[skill].push_back(id);
     }
-    // Build inverted index for interests
+
     for (const string& interest : student.getInterests()) {
         interestIndex[interest].push_back(id);
     }
 
-    // Build inverted index for department
     departmentIndex[student.getDepartment()].push_back(id);
 
     cout << "Student '" << student.getName() << "' added (ID: " << id << ")." << endl;
 }
 
-// O(1) average lookup using hash
+
 Student* DataStore::findStudentById(int id) {
     auto it = students.find(id);
     if (it != students.end()) return &it->second;
@@ -38,11 +37,10 @@ void DataStore::displayAllStudents() const {
 }
 void DataStore::addGroup(Group group) {
     int id = group.getGroupId();
-    groups[id] = group;  // O(1) insert
+    groups[id] = group;  // O(1) insert 
     cout << "Group '" << group.getGroupName() << "' created (ID: " << id << ")." << endl;
 }
 
-// O(1) average lookup using hash
 Group* DataStore::findGroupById(int id) {
     auto it = groups.find(id);
     if (it != groups.end()) return &it->second;
@@ -144,5 +142,49 @@ Post* DataStore::findPostById(int id) {
     auto it = posts.find(id);
     if (it != posts.end()) return &it->second;
     return nullptr;
+}
+// Add a message
+void DataStore::addMessage(Message message) {
+    messages.push_back(message);
+}
+
+// Get all messages between two students in chronological order
+vector<Message> DataStore::getConversation(int studentA, int studentB) const {
+    vector<Message> conversation;
+    for (const auto& m : messages) {
+        if ((m.getSenderId() == studentA && m.getReceiverId() == studentB) ||
+            (m.getSenderId() == studentB && m.getReceiverId() == studentA)) {
+            conversation.push_back(m);
+        }
+    }
+    return conversation;
+}
+
+// Get all unique student IDs that studentId has chatted with
+vector<int> DataStore::getChatPartners(int studentId) const {
+    vector<int> partners;
+    for (const auto& m : messages) {
+        int partner = 0;
+        if (m.getSenderId() == studentId) partner = m.getReceiverId();
+        else if (m.getReceiverId() == studentId) partner = m.getSenderId();
+
+        if (partner != 0) {
+            // Add if not already in list
+            if (find(partners.begin(), partners.end(), partner) == partners.end()) {
+                partners.push_back(partner);
+            }
+        }
+    }
+    return partners;
+}
+
+// Get next message ID
+int DataStore::getNextMessageId() {
+    return nextMessageId++;
+}
+
+// Get all messages
+vector<Message> DataStore::getAllMessages() const {
+    return messages;
 }
 

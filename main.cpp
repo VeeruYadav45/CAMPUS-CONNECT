@@ -50,8 +50,77 @@ void printMenu() {
 }
 
 // -------------------------------------------------------
+// loadSampleStudents: Pre-populates 10 sample students into DataStore and Graph
+// -------------------------------------------------------
+void loadSampleStudents(DataStore &store, Graph &graph, int &nextStudentId) {
+  Student s1(nextStudentId++, "Tanvay Jain", {"C++", "Python", "DSA"},
+             {"AI", "Web Dev"}, "CSE", 2);
+  store.addStudent(s1);
+  graph.addStudent(s1.getId());
+
+  Student s2(nextStudentId++, "Ravi Kumar", {"Python", "C++", "ML"},
+             {"AI", "Data Science"}, "CSE", 2);
+  store.addStudent(s2);
+  graph.addStudent(s2.getId());
+
+  Student s3(nextStudentId++, "Priya Sharma", {"Java", "Python", "Web Dev"},
+             {"Web Dev", "Open Source"}, "CSE", 3);
+  store.addStudent(s3);
+  graph.addStudent(s3.getId());
+
+  Student s4(nextStudentId++, "Ankit Singh", {"C++", "Embedded", "IoT"},
+             {"Robotics", "IoT"}, "ECE", 2);
+  store.addStudent(s4);
+  graph.addStudent(s4.getId());
+
+  Student s5(nextStudentId++, "Neha Gupta", {"Python", "DSA", "ML"},
+             {"AI", "Competitive Programming"}, "CSE", 2);
+  store.addStudent(s5);
+  graph.addStudent(s5.getId());
+
+  Student s6(nextStudentId++, "Arjun Mehta", {"C++", "DSA", "Python"},
+             {"Competitive Programming", "AI"}, "CSE", 3);
+  store.addStudent(s6);
+  graph.addStudent(s6.getId());
+
+  Student s7(nextStudentId++, "Sanya Verma", {"Java", "Spring", "SQL"},
+             {"Backend Dev", "Cloud"}, "IT", 3);
+  store.addStudent(s7);
+  graph.addStudent(s7.getId());
+
+  Student s8(nextStudentId++, "Karan Patel", {"C++", "DSA", "System Design"},
+             {"AI", "Open Source"}, "CSE", 2);
+  store.addStudent(s8);
+  graph.addStudent(s8.getId());
+
+  Student s9(nextStudentId++, "Ishita Rao", {"Python", "ML", "Data Science"},
+             {"AI", "Research"}, "CSE", 3);
+  store.addStudent(s9);
+  graph.addStudent(s9.getId());
+
+  Student s10(nextStudentId++, "Aditya Verma", {"Java", "Web Dev", "React"},
+              {"Web Dev", "Cloud"}, "IT", 2);
+  store.addStudent(s10);
+  graph.addStudent(s10.getId());
+
+  // Add connections (friendships / study-buddy links)
+  graph.addConnection(s1.getId(), s2.getId()); // Tanvay -- Ravi
+  graph.addConnection(s1.getId(), s5.getId()); // Tanvay -- Neha
+  graph.addConnection(s2.getId(), s5.getId()); // Ravi -- Neha
+  graph.addConnection(s2.getId(), s6.getId()); // Ravi -- Arjun
+  graph.addConnection(s3.getId(), s7.getId()); // Priya -- Sanya
+  graph.addConnection(s3.getId(), s10.getId()); // Priya -- Aditya
+  graph.addConnection(s5.getId(), s6.getId()); // Neha -- Arjun
+  graph.addConnection(s5.getId(), s8.getId()); // Neha -- Karan
+  graph.addConnection(s6.getId(), s8.getId()); // Arjun -- Karan
+  graph.addConnection(s4.getId(), s1.getId()); // Ankit -- Tanvay
+  graph.addConnection(s2.getId(), s9.getId()); // Ravi -- Ishita
+  graph.addConnection(s7.getId(), s10.getId()); // Sanya -- Aditya
+}
+
+// -------------------------------------------------------
 // runFullDemo: Automated demo that shows the complete flow:
-//   1. Register 8 sample students with overlapping skills
+//   1. Register 10 sample students with overlapping skills
 //   2. Create regular posts and a ProjectPost
 //   3. Build a graph with connections
 //   4. Show Top-K ranking using max-heap
@@ -64,81 +133,43 @@ void runFullDemo(DataStore &store, Graph &graph, int &nextStudentId,
   cout << "     CAMPUS-CONNECT: FULL DEMO (AUTO)       " << endl;
   cout << "============================================" << endl;
 
-  // --- Step 1: Register 8 sample students ---
-  cout << "\n--- Step 1: Registering Sample Students ---" << endl;
+  store.clearAll();
+  graph.clearAll();
+  nextStudentId = 1;
+  nextGroupId = 1;
 
-  Student s1(nextStudentId++, "Tanvay Jain", {"C++", "Python", "DSA"},
-             {"AI", "Web Dev"}, "CSE", 2);
-  store.addStudent(s1);
+  // --- Step 1: Register 10 sample students ---
+  cout << "\n--- Step 1: Registering 10 Sample Students ---" << endl;
+  loadSampleStudents(store, graph, nextStudentId);
 
-  Student s2(nextStudentId++, "Ravi Kumar", {"Python", "C++", "ML"},
-             {"AI", "Data Science"}, "CSE", 2);
-  store.addStudent(s2);
+  Student *s1 = store.findStudentById(1);
+  if (!s1) return;
 
-  Student s3(nextStudentId++, "Priya Sharma", {"Java", "Python", "Web Dev"},
-             {"Web Dev", "Open Source"}, "CSE", 3);
-  store.addStudent(s3);
-
-  Student s4(nextStudentId++, "Ankit Singh", {"C++", "Embedded", "IoT"},
-             {"Robotics", "IoT"}, "ECE", 2);
-  store.addStudent(s4);
-
-  Student s5(nextStudentId++, "Neha Gupta", {"Python", "DSA", "ML"},
-             {"AI", "Competitive Programming"}, "CSE", 2);
-  store.addStudent(s5);
-
-  Student s6(nextStudentId++, "Arjun Mehta", {"C++", "DSA", "Python"},
-             {"Competitive Programming", "AI"}, "CSE", 3);
-  store.addStudent(s6);
-
-  Student s7(nextStudentId++, "Sanya Verma", {"Java", "Spring", "SQL"},
-             {"Backend Dev", "Cloud"}, "IT", 3);
-  store.addStudent(s7);
-
-  Student s8(nextStudentId++, "Karan Patel", {"C++", "DSA", "System Design"},
-             {"AI", "Open Source"}, "CSE", 2);
-  store.addStudent(s8);
+  cout << "10 sample students registered successfully into the system!" << endl;
 
   // --- Step 2: Create a regular post and a ProjectPost ---
   cout << "\n--- Step 2: Creating Posts ---" << endl;
 
-  Post regularPost(store.getNextPostId(), s1.getId(), s1.getName(),
+  Post regularPost(store.getNextPostId(), s1->getId(), s1->getName(),
                    "Hello everyone! Excited to connect on Campus-Connect!",
                    getCurrentTime());
   store.addPost(regularPost);
-  cout << "Regular post created by " << s1.getName() << "." << endl;
+  cout << "Regular post created by " << s1->getName() << "." << endl;
 
-  ProjectPost projPost(store.getNextPostId(), s1.getId(), s1.getName(),
+  ProjectPost projPost(store.getNextPostId(), s1->getId(), s1->getName(),
                        "AI Study Group Project", {"Python", "ML", "DSA"}, 3,
                        getCurrentTime());
   store.addPost(projPost);
-  cout << "ProjectPost created by " << s1.getName() << ":" << endl;
+  cout << "ProjectPost created by " << s1->getName() << ":" << endl;
   projPost.display();
 
   // --- Step 3: Build the social graph with connections ---
   cout << "\n--- Step 3: Building Social Graph ---" << endl;
-
-  // Add all students to the graph
-  for (int i = s1.getId(); i <= s8.getId(); i++) {
-    graph.addStudent(i);
-  }
-
-  // Add connections (friendships / study-buddy links)
-  graph.addConnection(s1.getId(), s2.getId()); // Tanvay -- Ravi
-  graph.addConnection(s1.getId(), s5.getId()); // Tanvay -- Neha
-  graph.addConnection(s2.getId(), s5.getId()); // Ravi -- Neha
-  graph.addConnection(s2.getId(), s6.getId()); // Ravi -- Arjun
-  graph.addConnection(s3.getId(), s7.getId()); // Priya -- Sanya
-  graph.addConnection(s5.getId(), s6.getId()); // Neha -- Arjun
-  graph.addConnection(s5.getId(), s8.getId()); // Neha -- Karan
-  graph.addConnection(s6.getId(), s8.getId()); // Arjun -- Karan
-  graph.addConnection(s4.getId(), s1.getId()); // Ankit -- Tanvay
-
   cout << "Graph connections:" << endl;
   graph.display();
 
   // --- Step 4: Top-K ranking using MAX-HEAP (all students) ---
-  cout << "\n--- Step 4: Top-K Matches for " << s1.getName()
+  cout << "\n--- Step 4: Top-K Matches for " << s1->getName()
        << " (All Students) ---" << endl;
 
   JaccardMatching matcher;
@@ -147,16 +178,16 @@ void runFullDemo(DataStore &store, Graph &graph, int &nextStudentId,
 
   cout << "Using Priority Queue (Max-Heap) with K = " << k << endl;
   vector<RankedResult> topAll =
-      TopKRanker::getTopK(s1, allStudents, matcher, k);
+      TopKRanker::getTopK(*s1, allStudents, matcher, k);
   TopKRanker::displayResults(topAll);
 
   // --- Step 5: Top-K via BFS + Jaccard ---
-  cout << "\n--- Step 5: Top-K via BFS + Jaccard for " << s1.getName() << " ---"
+  cout << "\n--- Step 5: Top-K via BFS + Jaccard for " << s1->getName() << " ---"
        << endl;
   cout << "BFS finds connected students first, then ranks them." << endl;
 
   vector<RankedResult> topBFS =
-      TopKRanker::getTopKUsingBFS(s1, graph, store, matcher, k);
+      TopKRanker::getTopKUsingBFS(*s1, graph, store, matcher, k);
   TopKRanker::displayResults(topBFS);
 
   // --- Step 6: Create a ProjectGroup with top matches ---
@@ -164,7 +195,7 @@ void runFullDemo(DataStore &store, Graph &graph, int &nextStudentId,
 
   ProjectGroup pGroup(nextGroupId++, "AI Study Group",
                       "A team for the AI Study Group Project",
-                      s1.getId(), // Tanvay is the leader
+                      s1->getId(), // Tanvay is the leader
                       projPost.getPostId());
 
   // Add top 2 matches as team members
@@ -192,7 +223,11 @@ int main() {
   int nextGroupId = 1;
   int choice;
 
+  // Pre-load data of 10 students
+  loadSampleStudents(store, graph, nextStudentId);
+
   cout << "Welcome to CAMPUS-CONNECT!" << endl;
+  cout << "Initial data of 10 students loaded into the system." << endl;
 
   do {
     printMenu();
