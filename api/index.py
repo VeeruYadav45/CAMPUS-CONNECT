@@ -5,11 +5,14 @@ import ssl
 import os
 from urllib.parse import urlparse, parse_qs
 
-# Neon PostgreSQL Connection URL
-DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_Myep9GhXj3Bg@ep-red-morning-a1v6vthl.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
-)
+# Neon PostgreSQL Connection URL (loaded securely from Vercel Environment Variables)
+DB_URL = os.environ.get("DATABASE_URL")
+if not DB_URL and os.path.exists(".env"):
+    with open(".env") as f:
+        for line in f:
+            if line.startswith("DATABASE_URL="):
+                DB_URL = line.strip().split("=", 1)[1].strip('"\'')
+                break
 
 def query_neon(sql):
     host = DB_URL.split("@")[1].split("/")[0].split("?")[0]
