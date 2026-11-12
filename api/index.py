@@ -5,22 +5,29 @@ import ssl
 import os
 from urllib.parse import urlparse, parse_qs
 
-# Neon PostgreSQL Connection URL (loaded securely from Vercel Environment Variables)
-DB_URL = os.environ.get("DATABASE_URL")
-if not DB_URL and os.path.exists(".env"):
-    with open(".env") as f:
-        for line in f:
-            if line.startswith("DATABASE_URL="):
-                DB_URL = line.strip().split("=", 1)[1].strip('"\'')
-                break
+def get_db_url():
+    # Check all common environment variable names
+    for key in ["DATABASE_URL", "DATABASE_URL_POOLED", "POSTGRES_URL", "POSTGRES_PRISMA_URL"]:
+        val = os.environ.get(key)
+        if val and val.strip():
+            return val.strip().strip('"\'')
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                if line.startswith("DATABASE_URL="):
+                    return line.strip().split("=", 1)[1].strip('"\'')
+    return None
 
 def query_neon(sql):
-    host = DB_URL.split("@")[1].split("/")[0].split("?")[0]
+    db_url = get_db_url()
+    if not db_url:
+        raise ValueError("DATABASE_URL environment variable is not found in Vercel. Please check Vercel Settings -> Environment Variables.")
+    host = db_url.split("@")[1].split("/")[0].split("?")[0]
     req = urllib.request.Request(
         f"https://{host}/sql",
         data=json.dumps({"query": sql}).encode("utf-8"),
         headers={
-            "Neon-Connection-String": DB_URL,
+            "Neon-Connection-String": db_url,
             "Content-Type": "application/json"
         }
     )
