@@ -760,6 +760,28 @@ function setupModals() {
   document.getElementById('btn-open-create-group')?.addEventListener('click', () => {
     document.getElementById('modal-create-group').classList.remove('hidden');
   });
+
+  // Edit Profile / Interests Modal Triggers
+  document.getElementById('btn-open-edit-profile')?.addEventListener('click', () => {
+    const cur = State.students.find(s => s.id === State.activeStudentId);
+    if (!cur) {
+      showToast("Select a student first or sign in.", "warning");
+      return;
+    }
+    document.getElementById('edit-department').value = cur.department || 'CSE';
+    document.getElementById('edit-year').value = cur.year || 2;
+    document.getElementById('edit-skills').value = (cur.skills || []).join(', ');
+    document.getElementById('edit-interests').value = (cur.interests || []).join(', ');
+    document.getElementById('modal-edit-profile').classList.remove('hidden');
+  });
+
+  document.getElementById('btn-close-edit-profile-modal')?.addEventListener('click', () => {
+    document.getElementById('modal-edit-profile').classList.add('hidden');
+  });
+
+  document.getElementById('btn-cancel-edit-profile')?.addEventListener('click', () => {
+    document.getElementById('modal-edit-profile').classList.add('hidden');
+  });
 }
 
 function setupEventListeners() {
@@ -826,6 +848,31 @@ function setupEventListeners() {
       await refreshAllData();
       setActiveStudent(newStudent.id);
     } catch (err) { }
+  });
+
+  // Form: Edit Profile & Interests
+  document.getElementById('form-edit-profile')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!State.activeStudentId) return;
+
+    const dept = document.getElementById('edit-department').value.trim();
+    const year = parseInt(document.getElementById('edit-year').value) || 2;
+    const skills = document.getElementById('edit-skills').value.split(',').map(s => s.trim()).filter(Boolean);
+    const interests = document.getElementById('edit-interests').value.split(',').map(i => i.trim()).filter(Boolean);
+
+    try {
+      await API.post(`/api/students/${State.activeStudentId}/update`, {
+        department: dept,
+        year: year,
+        skills: skills,
+        interests: interests
+      });
+      document.getElementById('modal-edit-profile').classList.add('hidden');
+      showToast('Profile and interests updated in Neon Cloud!', 'success');
+      await refreshAllData();
+    } catch (err) {
+      showToast('Failed to update profile: ' + (err.message || err), 'error');
+    }
   });
 
   // Form: Add Connection
