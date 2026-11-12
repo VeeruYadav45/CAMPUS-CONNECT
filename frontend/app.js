@@ -163,9 +163,16 @@ async function refreshAllData() {
     }
     setActiveStudent(State.activeStudentId || (State.students[0] ? State.students[0].id : null));
 
+    const statusDot = document.getElementById('server-status-dot');
+    const statusText = document.getElementById('server-status-text');
+    if (statusDot) statusDot.style.backgroundColor = '#22c55e';
+    if (statusText) statusText.innerText = 'Cloud Database Connected';
+
   } catch (err) {
-    document.getElementById('server-status-dot').style.backgroundColor = '#ef4444';
-    document.getElementById('server-status-text').innerText = 'Backend Offline';
+    const statusDot = document.getElementById('server-status-dot');
+    const statusText = document.getElementById('server-status-text');
+    if (statusDot) statusDot.style.backgroundColor = '#ef4444';
+    if (statusText) statusText.innerText = 'Backend Offline';
   }
 }
 

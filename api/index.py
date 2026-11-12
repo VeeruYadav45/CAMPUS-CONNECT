@@ -89,6 +89,42 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(e)}, 500)
             return
 
+        # 4. GET /api/connections
+        if path.endswith('/api/connections') or path.endswith('/connections'):
+            try:
+                res = query_neon("SELECT student_a as \"studentA\", student_b as \"studentB\" FROM connections;")
+                self.send_json(res.get("rows", []))
+            except Exception:
+                self.send_json([])
+            return
+
+        # 5. GET /api/groups
+        if path.endswith('/api/groups') or path.endswith('/groups'):
+            try:
+                res = query_neon("SELECT id, name, description, leader_id as \"leaderId\" FROM groups;")
+                self.send_json(res.get("rows", []))
+            except Exception:
+                self.send_json([])
+            return
+
+        # 6. GET /api/posts
+        if path.endswith('/api/posts') or path.endswith('/posts'):
+            try:
+                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM posts;")
+                self.send_json(res.get("rows", []))
+            except Exception:
+                self.send_json([])
+            return
+
+        # 7. GET /api/project-posts
+        if path.endswith('/api/project-posts') or path.endswith('/project-posts'):
+            try:
+                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM project_posts;")
+                self.send_json(res.get("rows", []))
+            except Exception:
+                self.send_json([])
+            return
+
         self.send_json({"error": "Endpoint not found"}, 404)
 
     def do_POST(self):
