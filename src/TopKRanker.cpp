@@ -1,15 +1,21 @@
 #include "../include/TopKRanker.h"
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 using namespace std;
 
 // -------------------------------------------------------
-// getTopK: Push all candidate scores into a MAX-HEAP,
-// then pop the top K elements.
+// getTopK: Bounded MIN-HEAP of size k.
 //
-// Time complexity: O(N log N) to push N candidates,
-// O(K log N) to pop K elements. Total: O(N log N).
-// This is more efficient than sorting when K << N.
+// The heap holds the best k results seen so far, with the
+// WORST of them on top. For each new candidate:
+//   - heap has < k items        -> push           O(log k)
+//   - candidate beats the top   -> pop + push     O(log k)
+//   - otherwise                 -> skip           O(1)
+//
+// Time:  O(N log k) instead of O(N log N) for pushing all N
+//        into a max-heap (or sorting everything).
+// Space: O(k) instead of O(N).
 // -------------------------------------------------------
 vector<RankedResult> TopKRanker::getTopK(
     const Student& target,
@@ -17,36 +23,39 @@ vector<RankedResult> TopKRanker::getTopK(
     const MatchingStrategy& strategy,
     int k
 ) {
-    // Max-heap: highest score is always on top
-    priority_queue<RankedResult, vector<RankedResult>, CompareScore> maxHeap;
+    vector<RankedResult> topResults;
+    if (k <= 0) return topResults;
 
-    // Step 1: Compute similarity for each candidate and push into heap
-    for (int i = 0; i < (int)candidates.size(); i++) {
+    priority_queue<RankedResult, vector<RankedResult>, WorstOnTop> minHeap;
+
+    for (const Student& candidate : candidates) {
         // Skip if candidate is the same as target
-        if (candidates[i].getId() == target.getId()) continue;
+        if (candidate.getId() == target.getId()) continue;
 
         // Use Aditya's MatchingStrategy interface (polymorphism)
-        double score = strategy.calculateSimilarity(target, candidates[i]);
+        double score = strategy.calculateSimilarity(target, candidate);
 
-        // Only add to heap if there is some similarity
-        if (score > 0.0) {
-            RankedResult result;
-            result.studentId = candidates[i].getId();
-            result.studentName = candidates[i].getName();
-            result.score = score;
-            maxHeap.push(result);
-        }
+        // Only rank candidates with some similarity
+        if (score <= 0.0) continue;
+
+        RankedResult result;
+        result.studentId = candidate.getId();
+        result.score = score;
+
+        bool heapFull = ((int)minHeap.size() == k);
+        if (heapFull && !rankedBetter(result, minHeap.top())) continue;  // not in top k
+
+        result.studentName = candidate.getName();  // copy the name only for kept results
+        if (heapFull) minHeap.pop();               // evict the current worst
+        minHeap.push(result);
     }
 
-    // Step 2: Pop top K results from the heap
-    vector<RankedResult> topResults;
-    int count = 0;
-    while (!maxHeap.empty() && count < k) {
-        topResults.push_back(maxHeap.top());
-        maxHeap.pop();
-        count++;
+    // Pop worst -> best, then reverse so the best comes first. O(k log k)
+    while (!minHeap.empty()) {
+        topResults.push_back(minHeap.top());
+        minHeap.pop();
     }
-
+    reverse(topResults.begin(), topResults.end());
     return topResults;
 }
 
