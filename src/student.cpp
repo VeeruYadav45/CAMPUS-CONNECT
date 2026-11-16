@@ -33,14 +33,14 @@ void Student::display() {
     cout << "Year       : " << year << endl;
 
     cout << "Skills     : ";
-    for (int i = 0; i < skills.size(); i++) {
+    for (size_t i = 0; i < skills.size(); i++) {
         cout << skills[i];
         if (i != skills.size() - 1) cout << ", ";
     }
     cout << endl;
 
     cout << "Interests  : ";
-    for (int i = 0; i < interests.size(); i++) {
+    for (size_t i = 0; i < interests.size(); i++) {
         cout << interests[i];
         if (i != interests.size() - 1) cout << ", ";
     }
