@@ -28,6 +28,10 @@ public:
 
     void addLike();
     virtual void display() const;  // Virtual so ProjectPost can override
+
+    // Polymorphic copy: lets DataStore keep a ProjectPost as a ProjectPost
+    // (copying it into a plain Post would "slice" off the project fields).
+    virtual Post* clone() const { return new Post(*this); }
 };
 
 #endif

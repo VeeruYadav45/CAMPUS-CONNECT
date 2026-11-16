@@ -70,7 +70,7 @@ void Group::display() const {
     cout << "Description : " << description << endl;
     cout << "Admin ID    : " << adminId << endl;
     cout << "Members     : ";
-    for (int i = 0; i < memberIds.size(); i++) {
+    for (size_t i = 0; i < memberIds.size(); i++) {
         cout << memberIds[i];
         if (i != memberIds.size() - 1) cout << ", ";
     }
