@@ -34,6 +34,8 @@ public:
 
     // Override display to show project-specific info (polymorphism)
     void display() const override;
+
+    ProjectPost* clone() const override { return new ProjectPost(*this); }
 };
 
 #endif
