@@ -1,4 +1,12 @@
+# Compiled files
 *.o
 *.exe
+/campus_connect
+/server
+/benchmark
+/test_dsa
+/nul
+
+# Secrets and Python cache
 .env
 __pycache__/
