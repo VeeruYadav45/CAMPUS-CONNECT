@@ -86,6 +86,39 @@ class handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
 
+        # DIAGNOSTIC: GET /api/diag — check tables & try inserts
+        if path.endswith('/api/diag'):
+            report = {}
+            # Check which tables exist
+            try:
+                res = query_neon("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;")
+                report["tables"] = [r["table_name"] for r in res.get("rows", [])]
+            except Exception as e:
+                report["tables_error"] = str(e)
+            # Test project_posts insert
+            try:
+                query_neon("INSERT INTO project_posts (author_id, author_name, project_title, required_skills, team_size_needed, content) VALUES (12, 'Test', 'DiagProject', ARRAY['Python'], 2, 'diag') RETURNING id;")
+                report["project_posts_insert"] = "OK"
+                query_neon("DELETE FROM project_posts WHERE project_title='DiagProject';")
+            except Exception as e:
+                report["project_posts_insert_error"] = str(e)
+            # Test groups insert
+            try:
+                res2 = query_neon("INSERT INTO groups (name, description, leader_id) VALUES ('DiagGroup', 'diag', 12) RETURNING id;")
+                gid = res2["rows"][0]["id"]
+                report["groups_insert"] = "OK"
+                query_neon(f"DELETE FROM groups WHERE id={gid};")
+            except Exception as e:
+                report["groups_insert_error"] = str(e)
+            # Test group_members
+            try:
+                cols = query_neon("SELECT column_name FROM information_schema.columns WHERE table_name='group_members' ORDER BY ordinal_position;")
+                report["group_members_columns"] = [r["column_name"] for r in cols.get("rows", [])]
+            except Exception as e:
+                report["group_members_error"] = str(e)
+            self.send_json(report)
+            return
+
         # 1. GET /api/students
         if path.endswith('/api/students') or path.endswith('/students'):
             try:
