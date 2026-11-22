@@ -51,6 +51,16 @@ def pull_all():
         json.dump(data, f, indent=2)
     print(f"Synced {len(data['students'])} students and {len(data['messages'])} messages from Neon Cloud.")
 
+def add_student(name, dept, year, email=""):
+    escaped_name = name.replace("'", "''")
+    escaped_dept = dept.replace("'", "''")
+    if not email:
+        email = f"{name.lower().replace(' ', '.')}@geu.ac.in"
+    escaped_email = email.replace("'", "''")
+    sql = f"INSERT INTO students (name, email, department, year, skills, interests) VALUES ('{escaped_name}', '{escaped_email}', '{escaped_dept}', {year}, ARRAY['C++','Python','DSA'], ARRAY['Web Dev','AI']) RETURNING id;"
+    res = query_neon(sql)
+    print(f"Inserted student into Neon with ID: {res['rows'][0]['id']}")
+
 def add_message(sender_id, receiver_id, content):
     escaped = content.replace("'", "''")
     sql = f"INSERT INTO messages (sender_id, receiver_id, content) VALUES ({sender_id}, {receiver_id}, '{escaped}') RETURNING id;"
@@ -64,6 +74,9 @@ if __name__ == "__main__":
             pull_all()
         elif cmd == "add_message" and len(sys.argv) >= 5:
             add_message(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4])
+        elif cmd == "add_student" and len(sys.argv) >= 4:
+            email_arg = sys.argv[5] if len(sys.argv) >= 6 else ""
+            add_student(sys.argv[2], sys.argv[3], int(sys.argv[4]), email_arg)
         else:
             pull_all()
     else:

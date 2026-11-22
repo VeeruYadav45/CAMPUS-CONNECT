@@ -906,10 +906,11 @@ function setupEventListeners() {
 
     try {
       const post = await API.post('/api/project-posts', {
-        studentId: leaderId,
-        title: title,
+        authorId: leaderId,
+        projectTitle: title,
         requiredSkills: skills,
-        teamSize: size
+        teamSizeNeeded: size,
+        content: title
       });
       showToast(`Project "${title}" posted!`, "success");
       document.getElementById('modal-create-project').classList.add('hidden');
@@ -947,7 +948,7 @@ function setupEventListeners() {
 
     try {
       await API.post('/api/posts', {
-        studentId: State.activeStudentId,
+        authorId: State.activeStudentId,
         content
       });
       input.value = '';
@@ -1195,18 +1196,19 @@ async function onMicrosoftAuthSuccess(name, email) {
   updateMsAuthUI(name, email);
   showToast(`Welcome, ${name}! Signed in via Graphic Era Outlook 🎓`, "success");
 
-  // Check if a student with this name already exists in DataStore
+  // Match by email (unique), not name
   let matchedStudent = State.students.find(s =>
-    s.name.toLowerCase() === name.toLowerCase()
+    s.email && s.email.toLowerCase() === email.toLowerCase()
   );
 
   if (matchedStudent) {
     setActiveStudent(matchedStudent.id);
   } else {
-    // If first time logging in, auto-create a verified student profile
+    // First-time login — auto-create a verified student profile
     try {
       const newStudent = await API.post("/api/students", {
         name: name,
+        email: email,
         department: "CSE",
         year: 2,
         skills: ["C++", "Python", "DSA"],

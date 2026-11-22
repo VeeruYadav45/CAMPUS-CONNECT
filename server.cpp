@@ -366,6 +366,10 @@ int main() {
             store.addStudent(s);
             graph.addStudent(id);
 
+            // Persist new student to Neon Cloud
+            string cmd = "python db_sync.py add_student \"" + name + "\" \"" + dept + "\" " + to_string(year);
+            system(cmd.c_str());
+
             sendJsonOk(res, studentToJson(s));
         } catch (const exception &e) {
             sendJsonError(res, string("Invalid request: ") + e.what());
