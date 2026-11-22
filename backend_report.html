@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Campus Connect - Backend Architecture & Technical Documentation</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #64748b;
+    }
+    @bottom-left {
+      content: "Campus Connect | Backend Engineering Report";
+      font-size: 9pt;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #64748b;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.55;
+    font-size: 10.5pt;
+    background: #ffffff;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Cover Header Banner */
+  .header-card {
+    border-bottom: 3px solid #3b82f6;
+    padding-bottom: 14px;
+    margin-bottom: 22px;
+  }
+  .project-title {
+    font-size: 24pt;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+    margin: 0 0 6px 0;
+  }
+  .project-subtitle {
+    font-size: 13pt;
+    font-weight: 500;
+    color: #2563eb;
+    margin: 0 0 10px 0;
+  }
+  .doc-meta {
+    font-size: 9.5pt;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8px;
+  }
+
+  h1 {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1.5px solid #cbd5e1;
+    padding-bottom: 4px;
+    margin-top: 24px;
+    margin-bottom: 10px;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 12pt;
+    font-weight: 600;
+    color: #1e3a8a;
+    margin-top: 16px;
+    margin-bottom: 6px;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #334155;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin: 0 0 9px 0;
+    text-align: justify;
+  }
+
+  ul, ol {
+    margin: 0 0 10px 0;
+    padding-left: 20px;
+  }
+
+  li {
+    margin-bottom: 4px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 8pt;
+    font-weight: 700;
+    border-radius: 4px;
+    background: #e0f2fe;
+    color: #0369a1;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  .badge-algo {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .badge-cpp {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  /* Code Block Styling */
+  pre {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #3b82f6;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: "Fira Code", Consolas, "Courier New", monospace;
+    font-size: 8.8pt;
+    line-height: 1.45;
+    overflow-x: auto;
+    margin: 8px 0 12px 0;
+    page-break-inside: avoid;
+  }
+
+  code {
+    font-family: "Fira Code", Consolas, "Courier New", monospace;
+    font-size: 9pt;
+    background: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #0f172a;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    text-align: left;
+  }
+
+  th {
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  tr:nth-child(even) {
+    background: #f8fafc;
+  }
+
+  /* Callout Boxes */
+  .callout {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #16a34a;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin: 10px 0 14px 0;
+    page-break-inside: avoid;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    color: #15803d;
+    font-size: 10pt;
+    margin-bottom: 4px;
+  }
+
+  .callout-formula {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    margin: 8px 0;
+  }
+
+  .qa-card {
+    background: #fdfdfe;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    page-break-inside: avoid;
+  }
+
+  .qa-q {
+    font-weight: 700;
+    color: #1e3a8a;
+    font-size: 10pt;
+    margin-bottom: 4px;
+  }
+
+  .qa-a {
+    font-size: 9.5pt;
+    color: #334155;
+    margin: 0;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .team-card {
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 9pt;
+  }
+
+  .team-name {
+    font-weight: 700;
+    color: #0f172a;
+  }
+</style>
+</head>
+<body>
+
+<!-- Page 1: Header & Executive Overview -->
+<div class="header-card">
+  <div class="project-title">CAMPUS CONNECT</div>
+  <div class="project-subtitle">High-Performance Student Social Network & Intelligent Project Teammate Recommendation System</div>
+  <div class="doc-meta">
+    <span><strong>Domain:</strong> Data Structures, Graph Algorithms & Distributed Backend Engineering</span>
+    <span><strong>Target Audience:</strong> Project Evaluation Committee / Faculty Evaluation</span>
+  </div>
+</div>
+
+<div class="team-grid">
+  <div class="team-card">
+    <div class="team-name">Veeru Yadav (Lead)</div>
+    <div>DataStore Repository, Message Engine, Database Sync & Cloud PostgreSQL Migration</div>
+  </div>
+  <div class="team-card">
+    <div class="team-name">Tanvay Jain</div>
+    <div>Priority Queue Top-K Ranker, C++ HTTP Engine & Server Integration</div>
+  </div>
+  <div class="team-card">
+    <div class="team-name">Aditya</div>
+    <div>Adjacency List Graph Engine, BFS Traversal, Jaccard Matching Strategy</div>
+  </div>
+  <div class="team-card">
+    <div class="team-name">Vivekanand</div>
+    <div>Trie Prefix Search Engine, Talent Directory & Interactive Frontend</div>
+  </div>
+</div>
+
+<h1>1. Executive Summary & Problem Formulation</h1>
+<p>
+University campuses suffer from severe <strong>information silos</strong>: students with complementary skill sets (e.g., frontend designers, backend systems programmers, ML researchers) struggle to discover one another across academic departments and graduation cohorts. Traditional social networks focus on vanity metrics rather than structured competency matching.
+</p>
+<p>
+<strong>Campus Connect</strong> resolves this challenge through a hybrid, dual-tier computational engine. The system integrates advanced Data Structures and Algorithms (DSA)—including <strong>Adjacency List Graph representations, Breadth-First Search (BFS), Jaccard Similarity Set Indices, and Heap-based Priority Queues (Top-K Selection)</strong>—to deliver real-time, deterministic, and explainable teammate recommendations.
+</p>
+
+<h2>Dual-Backend Architectural Paradigm</h2>
+<p>
+The project implements a modern dual-backend architecture designed for both local algorithmic high-throughput execution and multi-user serverless cloud distribution:
+</p>
+<ul>
+  <li><strong>Tier 1: High-Performance C++ Algorithmic Core Engine (<code>server.cpp</code>)</strong>: Built on modern C++17 utilizing <code>httplib.h</code> and <code>nlohmann/json</code>. It keeps the entire campus network in-memory in custom DSA structures, executing graph traversals and heap rankings with sub-millisecond latency.</li>
+  <li><strong>Tier 2: Cloud Serverless Microservices API (<code>api/index.py</code>)</strong>: Deployed on <strong>Vercel Edge Serverless Infrastructure</strong> integrated with <strong>Neon Serverless Cloud PostgreSQL</strong>. It provides global HTTP availability, secure session management, persistent ACID transactions, and relational data integrity.</li>
+</ul>
+
+<div class="callout">
+  <div class="callout-title">Key Architectural Achievement</div>
+  The C++ engine and Cloud Serverless layer share an identical REST API schema contract. A synchronization layer (<code>db_sync.py</code>) bridges cloud PostgreSQL tables with in-memory C++ cache representations (<code>neon_cache.json</code>), allowing the high-speed C++ engine to run on live cloud data.
+</div>
+
+<h1>2. The Core Data Structures & Algorithmic Engine (DSA)</h1>
+<p>
+The primary strength of Campus Connect lies in its strict avoidance of brute-force solutions. The backend uses four textbook data structures to achieve optimal asymptotic time and space complexity:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Data Structure Used</th>
+      <th>Primary Algorithm</th>
+      <th>Time Complexity</th>
+      <th>Space Complexity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Social Graph</strong></td>
+      <td>Adjacency List (<code>unordered_map&lt;int, vector&lt;int&gt;&gt;</code>)</td>
+      <td>Breadth-First Search (BFS)</td>
+      <td><code>O(V + E)</code></td>
+      <td><code>O(V + E)</code></td>
+    </tr>
+    <tr>
+      <td><strong>Competency Match</strong></td>
+      <td>Hash Sets (<code>unordered_set&lt;string&gt;</code>)</td>
+      <td>Jaccard Similarity Index</td>
+      <td><code>O(|A| + |B|)</code></td>
+      <td><code>O(|A| + |B|)</code></td>
+    </tr>
+    <tr>
+      <td><strong>Top-K Ranker</strong></td>
+      <td>Max-Heap (<code>std::priority_queue</code>)</td>
+      <td>Heap Selection / Priority Extraction</td>
+      <td><code>O(N log K)</code></td>
+      <td><code>O(K)</code></td>
+    </tr>
+    <tr>
+      <td><strong>In-Memory Store</strong></td>
+      <td>Hash Maps (<code>unordered_map&lt;int, T*&gt;</code>)</td>
+      <td>Direct Pointer Lookup & Indexing</td>
+      <td><code>O(1)</code> average</td>
+      <td><code>O(N)</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<h2>2.1 The Campus Social Graph Engine (<code>Graph.h</code> & <code>Graph.cpp</code>)</h2>
+<p>
+The social fabric of the campus is modeled as an <strong>Unweighted Undirected Graph</strong> $G = (V, E)$, where vertices $V$ represent students and edges $E$ represent confirmed peer connections.
+</p>
+
+<h3>Data Structure Choice: Adjacency List</h3>
+<p>
+Instead of an Adjacency Matrix which consumes $O(V^2)$ memory (wasteful for sparse campus graphs where students average 10–20 connections out of thousands), we chose an <strong>Adjacency List</strong> backed by an unordered hash map:
+</p>
+<pre><code class="language-cpp">// include/Graph.h
+class Graph {
+private:
+    std::unordered_map&lt;int, std::vector&lt;int&gt;&gt; adjacencyList;
+public:
+    void addStudent(int studentId);
+    void addConnection(int studentId1, int studentId2);
+    std::vector&lt;int&gt; bfs(int startStudentId) const;
+    std::vector&lt;int&gt; getConnections(int studentId) const;
+};
+</code></pre>
+
+<h3>Breadth-First Search (BFS) Traversal</h3>
+<p>
+When finding candidate teammates, naive algorithms evaluate the entire global student database. Campus Connect utilizes <strong>BFS traversal</strong> to discover reachable candidates within close proximity (friends and friends-of-friends).
+</p>
+<pre><code class="language-cpp">// src/Graph.cpp: Breadth-First Search Implementation
+vector&lt;int&gt; Graph::bfs(int startStudentId) const {
+    vector&lt;int&gt; visitedOrder;
+    unordered_set&lt;int&gt; visited;
+    queue&lt;int&gt; q;
+
+    if (adjacencyList.find(startStudentId) == adjacencyList.end())
+        return visitedOrder;
+
+    visited.insert(startStudentId);
+    q.push(startStudentId);
+
+    while (!q.empty()) {
+        int curr = q.front();
+        q.pop();
+        visitedOrder.push_back(curr);
+
+        auto it = adjacencyList.find(curr);
+        if (it != adjacencyList.end()) {
+            for (int neighbor : it-&gt;second) {
+                if (visited.find(neighbor) == visited.end()) {
+                    visited.insert(neighbor);
+                    q.push(neighbor);
+                }
+            }
+        }
+    }
+    return visitedOrder;
+}
+</code></pre>
+
+<h3>Mutual Connection Analysis</h3>
+<p>
+To compute mutual connections between Student $A$ and Student $B$, the engine takes the connection vectors $Adj(A)$ and $Adj(B)$, inserts $Adj(B)$ into a hash set ($O(|Adj(B)|)$), and iterates through $Adj(A)$ performing $O(1)$ lookups. Total time complexity: $O(|Adj(A)| + |Adj(B)|)$.
+</p>
+
+<h2>2.2 Jaccard Similarity Strategy (<code>JaccardMatching.h</code>)</h2>
+<p>
+To quantify candidate compatibility without opaque machine learning models, the backend implements the <strong>Jaccard Similarity Coefficient</strong>, comparing discrete sets of competencies and domain interests.
+</p>
+
+<div class="callout-formula">
+  $$J(A, B) = \frac{|A \cap B|}{|A \cup B|} = \frac{|A \cap B|}{|A| + |B| - |A \cap B|}$$
+</div>
+
+<p>
+Where $A$ is the skill set required by the project (or possessed by the querying student) and $B$ is the candidate's skill profile.
+</p>
+<ul>
+  <li><strong>Boundary Conditions:</strong> If both sets are empty, $J(A, B) = 0.0$. If $A = B$, $J(A, B) = 1.0$ (100% Match).</li>
+  <li><strong>Computational Efficiency:</strong> Skills are tokenized into <code>std::unordered_set&lt;string&gt;</code>. Set intersection is computed in $O(\min(|A|, |B|))$ and set union in $O(|A| + |B|)$.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>2.3 The Top-K Ranker & Priority Queue (<code>TopKRanker.h</code> & <code>TopKRanker.cpp</code>)</h2>
+<p>
+A core requirement for teammate matching is returning only the <strong>Top-$K$</strong> most compatible students (e.g., $K = 3$ or $K = 5$), rather than sorting the entire student population of thousands.
+</p>
+
+<h3>Why a Heap over QuickSort / std::sort?</h3>
+<ul>
+  <li>Full sort (<code>std::sort</code>): Requires computing and sorting all $N$ candidates, taking $O(N \log N)$ time.</li>
+  <li><strong>Priority Queue (Max-Heap)</strong>: Inserts candidates and extracts top $K$ elements. For small $K \ll N$, maintained via a Min-Heap of size $K$, time complexity is bounded by <strong>$O(N \log K)$</strong>, saving significant memory and CPU cycles.</li>
+</ul>
+
+<pre><code class="language-cpp">// include/TopKRanker.h: Custom Struct & Comparator for Priority Queue
+struct RankedResult {
+    int studentId;
+    string studentName;
+    double score; // Jaccard similarity score [0.0 - 1.0]
+};
+
+struct CompareScore {
+    bool operator()(const RankedResult &a, const RankedResult &b) {
+        return a.score &lt; b.score; // Max-Heap: highest score at top
+    }
+};
+
+// src/TopKRanker.cpp: Algorithmic Pipeline
+vector&lt;RankedResult&gt; TopKRanker::getTopK(
+    const Student &target,
+    const vector&lt;Student&gt; &candidates,
+    const MatchingStrategy &strategy,
+    int k
+) {
+    priority_queue&lt;RankedResult, vector&lt;RankedResult&gt;, CompareScore&gt; maxHeap;
+
+    for (const auto &candidate : candidates) {
+        if (candidate.getId() == target.getId()) continue; // skip self
+
+        double score = strategy.calculateSimilarity(target, candidate);
+        maxHeap.push({candidate.getId(), candidate.getName(), score});
+    }
+
+    vector&lt;RankedResult&gt; topK;
+    int count = 0;
+    while (!maxHeap.empty() && count &lt; k) {
+        topK.push_back(maxHeap.top());
+        maxHeap.pop();
+        count++;
+    }
+    return topK;
+}
+</code></pre>
+
+<h3>Hybrid Algorithmic Integration: BFS + Jaccard + Heap</h3>
+<p>
+The C++ backend provides <code>getTopKUsingBFS()</code>, which seamlessly unites all three DSA modules:
+</p>
+<ol>
+  <li><strong>Candidate Harvesting (Graph BFS):</strong> Calls <code>graph.bfs(targetId)</code> to extract only students connected within the social component.</li>
+  <li><strong>Entity Hydration (DataStore):</strong> Maps student IDs to concrete in-memory <code>Student</code> records.</li>
+  <li><strong>Scoring (Strategy Pattern):</strong> Computes similarity index via <code>strategy.calculateSimilarity()</code>.</li>
+  <li><strong>Ranking (Priority Queue):</strong> Filters the Top-$K$ best teammates and returns them to the caller.</li>
+</ol>
+
+<h2>2.4 DataStore Architecture & Inverted Indices Deep Dive (Veeru's Core Engine)</h2>
+<p>
+The <code>DataStore</code> class (defined in <code>include/DataStore.h</code> and implemented in <code>src/DataStore.cpp</code>) serves as the primary high-speed in-memory database and entity indexing layer of the C++ backend. Rather than treating storage as a simple passive list, <code>DataStore</code> is engineered with multi-dimensional indexing data structures that eliminate expensive linear scans across the student body.
+</p>
+
+<h3>2.4.1 Comprehensive Member Data Structures in DataStore</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Member Variable</th>
+      <th>Underlying Data Structure</th>
+      <th>Where It Is Used</th>
+      <th>Why This Specific Data Structure Was Chosen</th>
+      <th>Lookup / Insert Complexity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>students</code></td>
+      <td>Hash Table (<code>std::unordered_map&lt;int, Student&gt;</code>)</td>
+      <td><code>addStudent()</code>, <code>findStudentById()</code>, <code>getAllStudents()</code></td>
+      <td>
+        <strong>Direct Primary Key Indexing:</strong> Enables $\mathcal{O}(1)$ average-time lookup, retrieval, and updates by student ID. If a <code>std::vector</code> were used, finding student #45 among 10,000 records would require an $\mathcal{O}(N)$ scan. If a balanced binary tree (<code>std::map</code>) were used, it would incur unnecessary $\mathcal{O}(\log N)$ overhead and node pointer indirection.
+      </td>
+      <td>Lookup: $\mathcal{O}(1)$ avg<br>Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><code>groups</code></td>
+      <td>Hash Table (<code>std::unordered_map&lt;int, Group&gt;</code>)</td>
+      <td><code>addGroup()</code>, <code>findGroupById()</code>, <code>getAllGroups()</code></td>
+      <td>
+        <strong>Instant Team/Club Lookup:</strong> Provides instantaneous retrieval when students join, leave, or view discussions for a specific group ID without searching linearly.
+      </td>
+      <td>Lookup: $\mathcal{O}(1)$ avg<br>Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><code>posts</code></td>
+      <td>Hash Table (<code>std::unordered_map&lt;int, Post&gt;</code>)</td>
+      <td><code>addPost()</code>, <code>findPostById()</code>, <code>getAllPosts()</code></td>
+      <td>
+        <strong>Key-Value Post Mapping:</strong> Stores both campus announcements and project collaboration posts indexed by <code>postId</code>. Allows instant lookups when inspecting metadata.
+      </td>
+      <td>Lookup: $\mathcal{O}(1)$ avg<br>Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><code>skillIndex</code></td>
+      <td><strong>Inverted Index:</strong> Hash Table mapping string to dynamic array (<code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code>)</td>
+      <td><code>addStudent()</code>, <code>matchBySkill()</code></td>
+      <td>
+        <strong>Search Engine Indexing:</strong> Solves the multi-attribute search problem. Without this inverted index, answering <em>"Find all students with C++"</em> requires scanning every student in the system and inspecting their skills array ($\mathcal{O}(N \cdot S)$). With <code>skillIndex</code>, looking up "C++" directly yields a pre-populated vector of student IDs in $\mathcal{O}(1)$ average hash-lookup time!
+      </td>
+      <td>Index Query: $\mathcal{O}(1)$ avg<br>Full Entity Fetch: $\mathcal{O}(K)$ for $K$ matches</td>
+    </tr>
+    <tr>
+      <td><code>interestIndex</code></td>
+      <td><strong>Inverted Index:</strong> Hash Table mapping string to dynamic array (<code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code>)</td>
+      <td><code>addStudent()</code>, <code>matchByInterest()</code></td>
+      <td>
+        <strong>Categorical Topic Filtering:</strong> Instantly clusters students passionate about domains like "AI", "Robotics", "Web Dev", or "Competitive Programming" without full-table scans.
+      </td>
+      <td>Index Query: $\mathcal{O}(1)$ avg<br>Full Entity Fetch: $\mathcal{O}(K)$ for $K$ matches</td>
+    </tr>
+    <tr>
+      <td><code>departmentIndex</code></td>
+      <td><strong>Categorical Bucket Map:</strong> Hash Table mapping branch code to array (<code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code>)</td>
+      <td><code>addStudent()</code>, <code>matchByDepartment()</code></td>
+      <td>
+        <strong>Cohort Partitioning:</strong> Partitions students by department ("CSE", "ECE", "IT", "AI-DS"). Enables instant filtering of students belonging to specific faculties.
+      </td>
+      <td>Index Query: $\mathcal{O}(1)$ avg<br>Full Entity Fetch: $\mathcal{O}(K)$ for $K$ matches</td>
+    </tr>
+    <tr>
+      <td><code>messages</code></td>
+      <td>Sequential Dynamic Array (<code>std::vector&lt;Message&gt;</code>)</td>
+      <td><code>addMessage()</code>, <code>getConversation()</code>, <code>getChatPartners()</code></td>
+      <td>
+        <strong>Chronological Append-Only Audit Log:</strong> Messages naturally arrive in a temporal timeline. <code>std::vector</code> provides contiguous memory allocation, maximum cache locality, and $\mathcal{O}(1)$ amortized append performance (<code>push_back</code>). Conversation slices preserve historical sending sequence.
+      </td>
+      <td>Append: $\mathcal{O}(1)$ amortized<br>Scan: $\mathcal{O}(M)$ for $M$ messages</td>
+    </tr>
+    <tr>
+      <td><code>nextPostId</code>, <code>nextMessageId</code></td>
+      <td>Primitive 32-bit Integers (<code>int</code>)</td>
+      <td><code>getNextPostId()</code>, <code>getNextMessageId()</code></td>
+      <td>
+        <strong>Monotonic Primary Key Sequence:</strong> Guarantees collision-free identifier allocation for new entities. Incremented via post-increment operator (<code>return nextPostId++;</code>).
+      </td>
+      <td>Increment: $\mathcal{O}(1)$</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>2.4.2 Inverted Index Mechanics in C++ Code</h3>
+<p>
+The core innovation in <code>DataStore</code> is the dual-write pattern executed inside <code>addStudent()</code>. When a student registers, they are stored in the primary <code>students</code> hash map, and their ID is automatically indexed across multiple secondary inverted indices:
+</p>
+<pre><code class="language-cpp">// src/DataStore.cpp: Dual-Write Inverted Index Population
+void DataStore::addStudent(Student student) {
+    int id = student.getId();
+    students[id] = student; // 1. Primary storage in hash table (O(1))
+
+    // 2. Inverted indexing by skills
+    for (const string& skill : student.getSkills()) {
+        skillIndex[skill].push_back(id); // O(1) hash lookup + O(1) append
+    }
+
+    // 3. Inverted indexing by interests
+    for (const string& interest : student.getInterests()) {
+        interestIndex[interest].push_back(id);
+    }
+
+    // 4. Categorical bucket indexing by department
+    departmentIndex[student.getDepartment()].push_back(id);
+}
+</code></pre>
+
+<h3>2.4.3 Instantaneous Query Resolution Using Inverted Index</h3>
+<p>
+When an API caller requests <code>GET /api/students/search?skill=C++</code>, the <code>matchBySkill()</code> function bypasses all non-matching students entirely:
+</p>
+<pre><code class="language-cpp">// src/DataStore.cpp: Fast Inverted Index Query
+vector&lt;Student&gt; DataStore::matchBySkill(string skill) {
+    vector&lt;Student&gt; result;
+    auto it = skillIndex.find(skill); // O(1) average lookup
+    if (it != skillIndex.end()) {
+        for (int id : it-&gt;second) {    // Iterate ONLY through students having this skill
+            auto s = students.find(id); // O(1) lookup in primary table
+            if (s != students.end())
+                result.push_back(s-&gt;second);
+        }
+    }
+    return result;
+}
+</code></pre>
+
+<div class="callout">
+  <div class="callout-title">Complexity Contrast: With vs. Without Inverted Index</div>
+  Suppose the campus has $N = 5,000$ students, each having an average of $S = 5$ skills.
+  <ul>
+    <li><strong>Without Inverted Index (Linear Search):</strong> Must inspect $5000 \times 5 = 25,000$ string comparisons on every query. Complexity: $\mathcal{O}(N \cdot S)$.</li>
+    <li><strong>With DataStore's Inverted Index:</strong> Hash lookup on "C++" takes $\mathcal{O}(1)$. If only $K = 40$ students have C++, only 40 IDs are accessed. Complexity: $\mathcal{O}(K)$, where $K \ll N$.</li>
+  </ul>
+</div>
+
+<h2>2.5 The Trie Prefix-Tree Search Engine (<code>src/trie1.cpp</code>)</h2>
+<p>
+For interactive prefix matching, autocomplete, and case-insensitive keyword searches on post content and project titles, the backend implements a specialized <strong>Trie (Prefix Tree)</strong> data structure (<code>Trie.h</code> & <code>src/trie1.cpp</code>).
+</p>
+<ul>
+  <li><strong>Structure:</strong> Each <code>TrieNode</code> contains a hash map of child character pointers (<code>std::unordered_map&lt;char, TrieNode*&gt; children</code>), a boolean flag <code>isEndOfWord</code>, and a dynamic list of matching entity IDs (<code>vector&lt;int&gt; postIds</code>).</li>
+  <li><strong>Lookup Complexity:</strong> Searching for a keyword of length $L$ takes exactly $\mathcal{O}(L)$ time, completely independent of the total number of posts stored in the system.</li>
+  <li><strong>Prefix Autocomplete:</strong> Traverses to the node representing prefix $P$ in $\mathcal{O}(|P|)$ time, then performs a Depth-First Search (DFS) sub-tree traversal via <code>collectWords()</code> to return all matching campus topics.</li>
+</ul>
+
+<h2>2.6 Master Data Structure Reference Matrix Across the Entire Platform</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Class / Component</th>
+      <th>Exact Data Structure</th>
+      <th>Role & Responsibility</th>
+      <th>Primary Time Complexity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>students</code></td>
+      <td><code>std::unordered_map&lt;int, Student&gt;</code></td>
+      <td>Primary student record repository</td>
+      <td>Search: $\mathcal{O}(1)$ avg | Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>groups</code></td>
+      <td><code>std::unordered_map&lt;int, Group&gt;</code></td>
+      <td>Team and campus club storage</td>
+      <td>Search: $\mathcal{O}(1)$ avg | Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>posts</code></td>
+      <td><code>std::unordered_map&lt;int, Post&gt;</code></td>
+      <td>Campus feed & project post index</td>
+      <td>Search: $\mathcal{O}(1)$ avg | Insert: $\mathcal{O}(1)$ avg</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>skillIndex</code></td>
+      <td><code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code></td>
+      <td>Inverted index for skill-to-student lookup</td>
+      <td>Filter: $\mathcal{O}(K)$ where $K$ is match count</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>interestIndex</code></td>
+      <td><code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code></td>
+      <td>Inverted index for domain interest discovery</td>
+      <td>Filter: $\mathcal{O}(K)$ matches</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>departmentIndex</code></td>
+      <td><code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code></td>
+      <td>Categorical bucket index by branch (CSE/IT/ECE)</td>
+      <td>Filter: $\mathcal{O}(K)$ matches</td>
+    </tr>
+    <tr>
+      <td><strong>DataStore</strong></td>
+      <td><code>messages</code></td>
+      <td><code>std::vector&lt;Message&gt;</code></td>
+      <td>Chronological audit log of peer conversations</td>
+      <td>Append: $\mathcal{O}(1)$ amortized | History scan: $\mathcal{O}(M)$</td>
+    </tr>
+    <tr>
+      <td><strong>Graph</strong></td>
+      <td><code>adjacencyList</code></td>
+      <td><code>std::unordered_map&lt;int, vector&lt;int&gt;&gt;</code></td>
+      <td>Unweighted undirected social network graph</td>
+      <td>Neighbor query: $\mathcal{O}(1)$ | Add edge: $\mathcal{O}(1)$</td>
+    </tr>
+    <tr>
+      <td><strong>Graph</strong></td>
+      <td>BFS Visited Tracking</td>
+      <td><code>std::queue&lt;int&gt;</code> + <code>std::unordered_set&lt;int&gt;</code></td>
+      <td>Breadth-First Search traversal queue & cycle check</td>
+      <td>Traversal: $\mathcal{O}(V + E)$</td>
+    </tr>
+    <tr>
+      <td><strong>Matching</strong></td>
+      <td><code>JaccardMatching</code></td>
+      <td><code>std::unordered_set&lt;string&gt;</code></td>
+      <td>Set intersection & union for similarity score</td>
+      <td>Intersection & Union: $\mathcal{O}(|A| + |B|)$</td>
+    </tr>
+    <tr>
+      <td><strong>Top-K Ranker</strong></td>
+      <td><code>TopKRanker</code></td>
+      <td><code>std::priority_queue&lt;RankedResult, ...&gt;</code></td>
+      <td>Max-Heap selection of highest scoring candidates</td>
+      <td>Insert: $\mathcal{O}(\log K)$ | Extract Top: $\mathcal{O}(K \log N)$</td>
+    </tr>
+    <tr>
+      <td><strong>Trie</strong></td>
+      <td><code>TrieNode::children</code></td>
+      <td><code>std::unordered_map&lt;char, TrieNode*&gt;</code></td>
+      <td>Prefix tree branching for text search & autocomplete</td>
+      <td>Key search: $\mathcal{O}(L)$ for query length $L$</td>
+    </tr>
+    <tr>
+      <td><strong>Concurrency</strong></td>
+      <td><code>serverMutex</code></td>
+      <td><code>std::mutex</code> + <code>std::lock_guard</code></td>
+      <td>Thread-safe synchronization of in-memory state</td>
+      <td>Lock/Unlock: $\mathcal{O}(1)$ hardware atomic</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1>3. Object-Oriented Software Design Patterns Applied</h1>
+
+<h2>3.1 The Strategy Design Pattern (<code>MatchingStrategy.h</code>)</h2>
+<p>
+To adhere to the <strong>Open/Closed Principle (OCP)</strong>, similarity calculation is encapsulated behind an abstract interface:
+</p>
+<pre><code class="language-cpp">class MatchingStrategy {
+public:
+    virtual ~MatchingStrategy() {}
+    virtual double calculateSimilarity(const Student& s1, const Student& s2) const = 0;
+};
+</code></pre>
+<p>
+<code>JaccardMatching</code> inherits from this interface. If future requirements demand Cosine Similarity or Deep Learning embeddings, new classes can be plugged in without modifying <code>TopKRanker</code> or <code>server.cpp</code>.
+</p>
+
+<h2>3.2 Inheritance and Polymorphism</h2>
+<ul>
+  <li><strong>Post Hierarchy:</strong> <code>Post</code> (Base class with <code>id</code>, <code>authorId</code>, <code>content</code>, <code>timestamp</code>) $\rightarrow$ <code>ProjectPost</code> (Derived class adding <code>projectTitle</code>, <code>requiredSkills</code>, <code>teamSizeNeeded</code>).</li>
+  <li><strong>Group Hierarchy:</strong> <code>Group</code> (Base class managing general student clubs) $\rightarrow$ <code>ProjectGroup</code> (Derived class binding a project post ID and project leader).</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>3.3 Repository Pattern & Thread Safety (<code>DataStore.h</code> & <code>DataStore.cpp</code>)</h2>
+<p>
+The <code>DataStore</code> class encapsulates all in-memory collections (Students, Posts, Groups, Messages). Because <code>cpp-httplib</code> spawns a thread pool to handle concurrent incoming HTTP requests, <code>server.cpp</code> protects shared data using <code>std::mutex</code> and RAII locks (<code>std::lock_guard&lt;std::mutex&gt;</code>) preventing race conditions.
+</p>
+
+<pre><code class="language-cpp">// Concurrency protection in server.cpp
+static std::mutex serverMutex;
+
+svr.Post("/api/posts", [](const httplib::Request &req, httplib::Response &res) {
+    std::lock_guard&lt;std::mutex&gt; lock(serverMutex); // Automatic mutex lock & release
+    // Thread-safe operations on store and graph
+});
+</code></pre>
+
+<h1>4. Cloud Serverless Architecture & Neon PostgreSQL Engine</h1>
+<p>
+To deploy Campus Connect on the public web (Vercel), we designed a lightweight serverless cloud backend in <code>api/index.py</code> communicating with a cloud-hosted <strong>Neon PostgreSQL</strong> database.
+</p>
+
+<h2>4.1 Normalized Relational Database Schema</h2>
+<p>
+The PostgreSQL database enforces relational integrity with explicit foreign keys and cascade rules:
+</p>
+<pre><code class="language-sql">-- 1. Students Table
+CREATE TABLE students (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    year INT NOT NULL,
+    skills TEXT[] DEFAULT '{}',
+    interests TEXT[] DEFAULT '{}'
+);
+
+-- 2. Connections Table (Social Graph Edges)
+CREATE TABLE connections (
+    student_a INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    student_b INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (student_a, student_b),
+    CHECK (student_a < student_b) -- Normalizes edge direction
+);
+
+-- 3. Groups & Team Formations
+CREATE TABLE groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    admin_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    is_project_group BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Group Members Junction Table (Many-to-Many)
+CREATE TABLE group_members (
+    group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, student_id)
+);
+
+-- 5. Project Posts (Collaboration Inquiries)
+CREATE TABLE project_posts (
+    id SERIAL PRIMARY KEY,
+    author_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    author_name VARCHAR(100),
+    project_title VARCHAR(200) NOT NULL,
+    required_skills TEXT[] DEFAULT '{}',
+    team_size_needed INTEGER DEFAULT 3,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</code></pre>
+
+<h2>4.2 Serverless Engineering Challenges Resolved</h2>
+<ol>
+  <li><strong>Neon HTTP Single-Statement Constraint:</strong> Serverless SQL over HTTPS executes queries in single-statement transactions. Multi-statement schema blocks fail silently with HTTP 400. We resolved this by executing migrations as isolated sequential statements.</li>
+  <li><strong>Foreign Key Constraint Synchronization:</strong> Schema column alignment was synchronized (ensuring <code>admin_id</code> is referenced across all group queries instead of unindexed keys).</li>
+  <li><strong>Defensive Parsing:</strong> Frontend dropdown inputs are guarded with fallback values (resolving to active student IDs) to prevent <code>NaN</code> serialization into SQL execution strings.</li>
+</ol>
+
+<div class="page-break"></div>
+
+<h1>5. Comprehensive Teacher Viva & Technical Q&A Cheat Sheet</h1>
+<p>
+Use these answers when presenting and explaining the project to your teacher:
+</p>
+
+<div class="qa-card">
+  <div class="qa-q">Q1: Why did you choose an Adjacency List instead of an Adjacency Matrix for the social graph?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> A university social network is a <em>sparse graph</em> ($E \ll V^2$). If our university has 5,000 students, an adjacency matrix would require a $5000 \times 5000$ matrix ($25 \text{ million cells} \approx 25\text{MB}$ of memory), mostly containing zeros. An adjacency list uses $O(V + E)$ space, storing only actual connections. Furthermore, traversing a student's neighbors in an adjacency list takes $O(\text{degree}(v))$ time, compared to $O(V)$ scans in a matrix.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q2: Why use a Priority Queue (Heap) for Top-K instead of simply sorting the array?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> Sorting the entire student population with <code>std::sort</code> takes $O(N \log N)$ time. When we only need the Top-$K$ matches (e.g., $K = 3$ or $5$), full sorting does wasted work sorting candidates from rank 6 through 5,000. By utilizing a Priority Queue (Max-Heap), we can push all scores and extract the top $K$ in $O(N + K \log N)$ time, or maintain a bounded Min-Heap of size $K$ in $O(N \log K)$ time.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q3: How does your Jaccard Similarity algorithm work and why is it suitable here?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> Jaccard Similarity calculates the size of the intersection divided by the size of the union of two sample sets: $J(A,B) = |A \cap B| / |A \cup B|$. It is ideal for skill matching because skills are discrete categorical tags (e.g., {"C++", "Python", "DSA"}). Unlike Euclidean distance which requires continuous coordinates, Jaccard handles arbitrary string sets cleanly and normalizes the score between $0.0$ and $1.0$.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q4: What happens if two students have zero skills in common? How is division by zero handled?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> In our <code>calculateSimilarity</code> method, we check whether the union set size is zero. If the union is empty (neither student listed any skills), or the intersection is zero, the algorithm immediately returns $0.0$, preventing any floating-point division-by-zero exceptions.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q5: How is thread safety ensured in your C++ backend?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> Our C++ HTTP server (<code>cpp-httplib</code>) is multi-threaded and handles incoming requests concurrently. To prevent race conditions when multiple threads read/write to the in-memory <code>DataStore</code> or <code>Graph</code>, we use <code>std::mutex</code> and lock it using <code>std::lock_guard&lt;std::mutex&gt;</code> (RAII idiom). The mutex automatically unlocks when the request handler scope terminates, preventing deadlocks.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q6: What design patterns did you apply in this architecture?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong>
+    1) <strong>Strategy Pattern</strong>: <code>MatchingStrategy</code> defines a clean interface allowing algorithms (Jaccard, Cosine, etc.) to be swapped dynamically.
+    2) <strong>Repository Pattern</strong>: <code>DataStore</code> acts as a centralized repository isolating data management from HTTP routing logic.
+    3) <strong>Inheritance & Polymorphism</strong>: <code>ProjectPost</code> extends <code>Post</code>, and <code>ProjectGroup</code> extends <code>Group</code>.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q7: Why did you build both a C++ backend and a Python/Vercel backend?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> This is a dual-tier architecture. The C++ backend serves as the core high-performance engine demonstrating low-level data structures, manual memory management, and algorithm optimization. The Python backend on Vercel acts as the serverless production layer, allowing students across the campus to access the app on the internet 24/7 without requiring our local laptops to run as static servers.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q8: How do you prevent duplicate connection edges in the graph and database?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong> In the database, we enforce a canonical ordering check: <code>CHECK (student_a < student_b)</code> with a composite primary key <code>PRIMARY KEY (student_a, student_b)</code>. In the C++ graph, an undirected edge is represented symmetrically by adding $B$ to $Adj(A)$ and $A$ to $Adj(B)$, but when listing edges for display, we only render where $A < B$ to eliminate duplication.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q9: What is the time complexity of the complete recommendation flow?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong>
+    1) BFS Candidate Harvest: $O(V + E)$ where $V$ is reachable peers and $E$ is local edges.
+    2) Jaccard Scoring: For $N$ candidates, $O(N \cdot S)$ where $S$ is average skill set size.
+    3) Heap Top-$K$: $O(N \log K)$.
+    Total Runtime: $O(V + E + N(S + \log K))$, which executes in under 2 milliseconds for thousands of students.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q10: What are the future enhancements planned for this project?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong>
+    1) Implementing weighted Jaccard similarity (giving higher weights to rare skills like Quantum Computing or FPGA).
+    2) Dijkstra's algorithm for weighted social edges based on interaction frequency and mutual group membership.
+    3) WebSocket protocol for real-time bidirectional messaging instead of client polling.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q11: Explain the internal data structures inside DataStore and why multiple collections exist.</div>
+  <p class="qa-a">
+    <strong>Answer:</strong>
+    <code>DataStore</code> acts as an in-memory repository managing entities and secondary search indices:
+    1) <code>students</code>, <code>groups</code>, <code>posts</code> are all <code>std::unordered_map&lt;int, T&gt;</code> using hash bucketing to provide $\mathcal{O}(1)$ average lookup by primary key ID.
+    2) <code>skillIndex</code>, <code>interestIndex</code>, <code>departmentIndex</code> are <strong>Inverted Indices</strong> (<code>std::unordered_map&lt;string, vector&lt;int&gt;&gt;</code>) that map an attribute value (like "Python" or "CSE") to pre-computed lists of matching student IDs.
+    3) <code>messages</code> is a contiguous <code>std::vector&lt;Message&gt;</code> for sequential chronological storage with $\mathcal{O}(1)$ amortized append.
+  </p>
+</div>
+
+<div class="qa-card">
+  <div class="qa-q">Q12: What is an Inverted Index, and what performance advantage does it give to matchBySkill()?</div>
+  <p class="qa-a">
+    <strong>Answer:</strong>
+    In information retrieval, an <strong>Inverted Index</strong> maps keywords/terms directly to the set of documents/entities containing them, rather than storing documents and searching through them. In our <code>DataStore</code>, <code>skillIndex["C++"]</code> directly holds <code>[12, 14, 23]</code>. Without this, calling <code>matchBySkill("C++")</code> would require a linear scan across all $N$ students, checking each student's inner skill list ($\mathcal{O}(N \cdot S)$ string comparisons). With the inverted index, lookup is $\mathcal{O}(1)$ to fetch the exact array of matching student IDs, transforming an expensive table scan into an instantaneous retrieval ($\mathcal{O}(K)$ where $K$ is the number of matching students).
+  </p>
+</div>
+
+</body>
+</html>
+
