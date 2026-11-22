@@ -900,9 +900,10 @@ function setupEventListeners() {
   document.getElementById('form-create-project')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('proj-title').value;
-    const leaderId = parseInt(document.getElementById('proj-leader').value);
+    const rawLeader = document.getElementById('proj-leader').value;
+    const leaderId = parseInt(rawLeader) || State.activeStudentId || (State.students[0] ? State.students[0].id : 12);
     const skills = document.getElementById('proj-skills').value.split(',').map(s => s.trim()).filter(Boolean);
-    const size = parseInt(document.getElementById('proj-size').value);
+    const size = parseInt(document.getElementById('proj-size').value) || 3;
 
     try {
       const post = await API.post('/api/project-posts', {
@@ -916,7 +917,9 @@ function setupEventListeners() {
       document.getElementById('modal-create-project').classList.add('hidden');
       e.target.reset();
       await refreshAllData();
-      selectProjectPost(post.id);
+      if (post && post.id) {
+        selectProjectPost(post.id);
+      }
     } catch (err) { }
   });
 
@@ -925,7 +928,8 @@ function setupEventListeners() {
     e.preventDefault();
     const name = document.getElementById('grp-name').value;
     const desc = document.getElementById('grp-desc').value;
-    const adminId = parseInt(document.getElementById('grp-admin').value);
+    const rawAdmin = document.getElementById('grp-admin').value;
+    const adminId = parseInt(rawAdmin) || State.activeStudentId || (State.students[0] ? State.students[0].id : 12);
 
     try {
       await API.post('/api/groups', {
@@ -944,11 +948,13 @@ function setupEventListeners() {
   document.getElementById('btn-submit-feed-post')?.addEventListener('click', async () => {
     const input = document.getElementById('feed-post-content');
     const content = input?.value.trim();
-    if (!content || !State.activeStudentId) return;
+    if (!content) return;
+    
+    const authorId = State.activeStudentId || (State.students[0] ? State.students[0].id : 12);
 
     try {
       await API.post('/api/posts', {
-        authorId: State.activeStudentId,
+        authorId: authorId,
         content
       });
       input.value = '';

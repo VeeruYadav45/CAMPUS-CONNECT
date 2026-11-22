@@ -110,7 +110,7 @@ class handler(BaseHTTPRequestHandler):
                 report["project_posts_insert_error"] = str(e)
             # Test groups insert
             try:
-                res2 = query_neon("INSERT INTO groups (name, description, leader_id) VALUES ('DiagGroup', 'diag', 12) RETURNING id;")
+                res2 = query_neon("INSERT INTO groups (name, description, admin_id) VALUES ('DiagGroup', 'diag', 12) RETURNING id;")
                 gid = res2["rows"][0]["id"]
                 report["groups_insert"] = "OK"
                 query_neon(f"DELETE FROM groups WHERE id={gid};")
@@ -384,12 +384,16 @@ class handler(BaseHTTPRequestHandler):
 
         # 4. POST /api/project-posts (Add project collaboration post) — MUST come before /posts check
         if '/project-posts' in path and not any(x in path for x in ['top-k', 'create-group']):
-            author_id = body.get('authorId')
+            author_id = body.get('authorId') or body.get('studentId') or 12
+            try:
+                author_id = int(author_id)
+            except Exception:
+                author_id = 12
             p_title = body.get('projectTitle', 'Project').replace("'", "''")
             skills = body.get('requiredSkills', [])
             skills_arr = "ARRAY[" + ",".join([f"'{s}'" for s in skills]) + "]" if skills else "ARRAY[]::TEXT[]"
             size = body.get('teamSizeNeeded', 3)
-            content = body.get('content', '').replace("'", "''")
+            content = (body.get('content') or p_title or 'Project collaboration').replace("'", "''")
             try:
                 s_res = query_neon(f"SELECT name FROM students WHERE id = {author_id};")
                 author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
@@ -402,7 +406,11 @@ class handler(BaseHTTPRequestHandler):
 
         # 5. POST /api/posts (Add feed post)
         if path.endswith('/api/posts') or path.endswith('/posts'):
-            author_id = body.get('authorId') or body.get('studentId')
+            author_id = body.get('authorId') or body.get('studentId') or 12
+            try:
+                author_id = int(author_id)
+            except Exception:
+                author_id = 12
             content = body.get('content', '').replace("'", "''")
             try:
                 s_res = query_neon(f"SELECT name FROM students WHERE id = {author_id};")
@@ -416,7 +424,11 @@ class handler(BaseHTTPRequestHandler):
 
         # 6. POST /api/groups or /api/project-posts/:id/create-group (Create Team / Group)
         if 'create-group' in path or path.endswith('/groups'):
-            admin_id = body.get('leaderId') or body.get('adminId') or 1
+            raw_admin = body.get('leaderId') or body.get('adminId') or 12
+            try:
+                admin_id = int(raw_admin)
+            except Exception:
+                admin_id = 12
             name = (body.get('groupName') or body.get('name', 'Team')).replace("'", "''")
             desc = body.get('description', 'Collaboration team').replace("'", "''")
             member_ids = body.get('memberIds', [])
