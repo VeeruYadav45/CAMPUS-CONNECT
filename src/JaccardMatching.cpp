@@ -2,8 +2,18 @@
 
 #include <set>
 #include <string>
+#include <algorithm>
+#include <cctype>
 
 using namespace std;
+
+// Helper: convert a string to all-lowercase for case-insensitive comparison
+static string toLower(const string& s) {
+    string result = s;
+    transform(result.begin(), result.end(), result.begin(),
+              [](unsigned char c) { return tolower(c); });
+    return result;
+}
 
 double JaccardMatching::calculateSimilarity(
     const Student& student1,
@@ -13,20 +23,21 @@ double JaccardMatching::calculateSimilarity(
     set<string> set1;
     set<string> set2;
 
+    // Normalize to lowercase before inserting so "DSA" == "dsa" == "Dsa"
     for (const string& skill : student1.getSkills()) {
-        set1.insert(skill);
+        set1.insert(toLower(skill));
     }
 
     for (const string& skill : student2.getSkills()) {
-        set2.insert(skill);
+        set2.insert(toLower(skill));
     }
 
     for (const string& interest : student1.getInterests()) {
-        set1.insert(interest);
+        set1.insert(toLower(interest));
     }
 
     for (const string& interest : student2.getInterests()) {
-        set2.insert(interest);
+        set2.insert(toLower(interest));
     }
 
     int intersection = 0;

@@ -848,7 +848,14 @@ int main() {
         }
 
         json arr = json::array();
-        unordered_set<string> reqSkillSet(metaIt->second.requiredSkills.begin(), metaIt->second.requiredSkills.end());
+        // Normalize requiredSkills to lowercase for case-insensitive matching
+        unordered_set<string> reqSkillSet;
+        for (const auto &sk : metaIt->second.requiredSkills) {
+            string lower = sk;
+            transform(lower.begin(), lower.end(), lower.begin(),
+                      [](unsigned char c){ return tolower(c); });
+            reqSkillSet.insert(lower);
+        }
 
         for (size_t i = 0; i < ranked.size(); i++) {
             json item;
@@ -865,8 +872,11 @@ int main() {
                 item["department"] = matchedStudent->getDepartment();
                 item["year"] = matchedStudent->getYear();
                 for (const auto &sk : matchedStudent->getSkills()) {
-                    if (reqSkillSet.count(sk)) {
-                        matchedSkills.push_back(sk);
+                    string lower = sk;
+                    transform(lower.begin(), lower.end(), lower.begin(),
+                              [](unsigned char c){ return tolower(c); });
+                    if (reqSkillSet.count(lower)) {
+                        matchedSkills.push_back(sk); // push original casing for display
                     }
                 }
             }
