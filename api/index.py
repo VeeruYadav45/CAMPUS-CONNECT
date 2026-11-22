@@ -34,36 +34,37 @@ def query_neon(sql):
     with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
-# Ensure tables exist
-SCHEMA_INIT = """
-CREATE TABLE IF NOT EXISTS project_posts (
-    id SERIAL PRIMARY KEY,
-    author_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
-    author_name VARCHAR(100),
-    project_title VARCHAR(200) NOT NULL,
-    required_skills TEXT[] DEFAULT '{}',
-    team_size_needed INTEGER DEFAULT 3,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS connections (
-    student_a INTEGER NOT NULL,
-    student_b INTEGER NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (student_a, student_b)
-);
-CREATE TABLE IF NOT EXISTS group_posts (
-    id SERIAL PRIMARY KEY,
-    group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
-    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-try:
-    query_neon(SCHEMA_INIT)
-except Exception:
-    pass
+# Ensure tables exist — run each statement separately (Neon HTTP API is single-statement only)
+SCHEMA_STATEMENTS = [
+    """CREATE TABLE IF NOT EXISTS project_posts (
+        id SERIAL PRIMARY KEY,
+        author_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+        author_name VARCHAR(100),
+        project_title VARCHAR(200) NOT NULL,
+        required_skills TEXT[] DEFAULT '{}',
+        team_size_needed INTEGER DEFAULT 3,
+        content TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+    """CREATE TABLE IF NOT EXISTS connections (
+        student_a INTEGER NOT NULL,
+        student_b INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (student_a, student_b)
+    )""",
+    """CREATE TABLE IF NOT EXISTS group_posts (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+        student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""",
+]
+for _stmt in SCHEMA_STATEMENTS:
+    try:
+        query_neon(_stmt)
+    except Exception:
+        pass
 
 class handler(BaseHTTPRequestHandler):
     def send_json(self, data, status=200):
@@ -89,12 +90,17 @@ class handler(BaseHTTPRequestHandler):
         # DIAGNOSTIC: GET /api/diag — check tables & try inserts
         if path.endswith('/api/diag'):
             report = {}
-            # Check which tables exist
             try:
                 res = query_neon("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;")
                 report["tables"] = [r["table_name"] for r in res.get("rows", [])]
             except Exception as e:
                 report["tables_error"] = str(e)
+            # Check groups columns
+            try:
+                cols = query_neon("SELECT column_name, data_type FROM information_schema.columns WHERE table_name='groups' ORDER BY ordinal_position;")
+                report["groups_columns"] = [r["column_name"] for r in cols.get("rows", [])]
+            except Exception as e:
+                report["groups_cols_error"] = str(e)
             # Test project_posts insert
             try:
                 query_neon("INSERT INTO project_posts (author_id, author_name, project_title, required_skills, team_size_needed, content) VALUES (12, 'Test', 'DiagProject', ARRAY['Python'], 2, 'diag') RETURNING id;")
@@ -110,7 +116,7 @@ class handler(BaseHTTPRequestHandler):
                 query_neon(f"DELETE FROM groups WHERE id={gid};")
             except Exception as e:
                 report["groups_insert_error"] = str(e)
-            # Test group_members
+            # group_members columns
             try:
                 cols = query_neon("SELECT column_name FROM information_schema.columns WHERE table_name='group_members' ORDER BY ordinal_position;")
                 report["group_members_columns"] = [r["column_name"] for r in cols.get("rows", [])]
