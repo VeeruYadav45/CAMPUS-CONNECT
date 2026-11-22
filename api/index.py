@@ -124,19 +124,19 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json([])
             return
 
-        # 4. GET /api/posts
-        if path.endswith('/api/posts') or path.endswith('/posts'):
+        # 4. GET /api/project-posts — MUST come before /posts check
+        if '/project-posts' in path and not any(x in path for x in ['top-k', 'create-group']):
             try:
-                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM posts ORDER BY id DESC;")
+                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM project_posts ORDER BY id DESC;")
                 self.send_json(res.get("rows", []))
             except Exception:
                 self.send_json([])
             return
 
-        # 5. GET /api/project-posts
-        if path.endswith('/api/project-posts') or path.endswith('/project-posts'):
+        # 5. GET /api/posts (feed posts)
+        if path.endswith('/api/posts') or path.endswith('/posts'):
             try:
-                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM project_posts ORDER BY id DESC;")
+                res = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM posts ORDER BY id DESC;")
                 self.send_json(res.get("rows", []))
             except Exception:
                 self.send_json([])
@@ -343,22 +343,8 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Missing student IDs"}, 400)
             return
 
-        # 4. POST /api/posts (Add feed post)
-        if path.endswith('/api/posts') or path.endswith('/posts'):
-            author_id = body.get('authorId') or body.get('studentId')
-            content = body.get('content', '').replace("'", "''")
-            try:
-                s_res = query_neon(f"SELECT name FROM students WHERE id = {author_id};")
-                author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
-                sql = f"INSERT INTO posts (author_id, author_name, content) VALUES ({author_id}, '{author_name}', '{content}') RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
-                res = query_neon(sql)
-                self.send_json(res["rows"][0], 200)
-            except Exception as e:
-                self.send_json({"error": str(e)}, 500)
-            return
-
-        # 5. POST /api/project-posts (Add project collaboration post)
-        if path.endswith('/api/project-posts') or path.endswith('/project-posts'):
+        # 4. POST /api/project-posts (Add project collaboration post) — MUST come before /posts check
+        if '/project-posts' in path and not any(x in path for x in ['top-k', 'create-group']):
             author_id = body.get('authorId')
             p_title = body.get('projectTitle', 'Project').replace("'", "''")
             skills = body.get('requiredSkills', [])
@@ -375,9 +361,23 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(e)}, 500)
             return
 
+        # 5. POST /api/posts (Add feed post)
+        if path.endswith('/api/posts') or path.endswith('/posts'):
+            author_id = body.get('authorId') or body.get('studentId')
+            content = body.get('content', '').replace("'", "''")
+            try:
+                s_res = query_neon(f"SELECT name FROM students WHERE id = {author_id};")
+                author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
+                sql = f"INSERT INTO posts (author_id, author_name, content) VALUES ({author_id}, '{author_name}', '{content}') RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
+                res = query_neon(sql)
+                self.send_json(res["rows"][0], 200)
+            except Exception as e:
+                self.send_json({"error": str(e)}, 500)
+            return
+
         # 6. POST /api/groups or /api/project-posts/:id/create-group (Create Team / Group)
         if 'create-group' in path or path.endswith('/groups'):
-            leader_id = body.get('leaderId', 1)
+            leader_id = body.get('leaderId') or body.get('adminId') or 1
             name = (body.get('groupName') or body.get('name', 'Team')).replace("'", "''")
             desc = body.get('description', 'Collaboration team').replace("'", "''")
             member_ids = body.get('memberIds', [])
