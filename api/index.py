@@ -147,19 +147,19 @@ class handler(BaseHTTPRequestHandler):
         if path.endswith('/api/groups') or path.endswith('/groups'):
             try:
                 res = query_neon("""
-                    SELECT g.id, g.name, g.description, g.leader_id as "leaderId",
+                    SELECT g.id, g.name, g.description, g.admin_id as "leaderId",
+                           g.is_project_group as "isProjectGroup",
                            COALESCE(array_agg(gm.student_id) FILTER (WHERE gm.student_id IS NOT NULL), '{}') as "memberIds",
-                           COUNT(gm.student_id) as "memberCount",
-                           FALSE as "isProjectGroup"
+                           COUNT(gm.student_id) as "memberCount"
                     FROM groups g
                     LEFT JOIN group_members gm ON gm.group_id = g.id
-                    GROUP BY g.id ORDER BY g.id DESC;
+                    GROUP BY g.id, g.admin_id, g.is_project_group ORDER BY g.id DESC;
                 """)
                 rows = res.get("rows", [])
                 for r in rows:
                     r["memberCount"] = int(r.get("memberCount", 0))
                 self.send_json(rows)
-            except Exception:
+            except Exception as e:
                 self.send_json([])
             return
 
@@ -416,23 +416,24 @@ class handler(BaseHTTPRequestHandler):
 
         # 6. POST /api/groups or /api/project-posts/:id/create-group (Create Team / Group)
         if 'create-group' in path or path.endswith('/groups'):
-            leader_id = body.get('leaderId') or body.get('adminId') or 1
+            admin_id = body.get('leaderId') or body.get('adminId') or 1
             name = (body.get('groupName') or body.get('name', 'Team')).replace("'", "''")
             desc = body.get('description', 'Collaboration team').replace("'", "''")
             member_ids = body.get('memberIds', [])
+            is_project = 'create-group' in path
             try:
-                sql = f"INSERT INTO groups (name, description, leader_id) VALUES ('{name}', '{desc}', {leader_id}) RETURNING id, name, description, leader_id as \"leaderId\";"
+                sql = f"INSERT INTO groups (name, description, admin_id, is_project_group) VALUES ('{name}', '{desc}', {admin_id}, {str(is_project).lower()}) RETURNING id, name, description, admin_id as \"leaderId\", is_project_group as \"isProjectGroup\";"
                 res = query_neon(sql)
                 g_id = res["rows"][0]["id"]
                 member_count = 1
-                # Add leader as member
+                # Add admin as member
                 try:
-                    query_neon(f"INSERT INTO group_members (group_id, student_id) VALUES ({g_id}, {leader_id}) ON CONFLICT DO NOTHING;")
+                    query_neon(f"INSERT INTO group_members (group_id, student_id) VALUES ({g_id}, {admin_id}) ON CONFLICT DO NOTHING;")
                 except Exception:
                     pass
                 # Add all selected members
                 for m_id in member_ids:
-                    if int(m_id) != int(leader_id):
+                    if int(m_id) != int(admin_id):
                         try:
                             query_neon(f"INSERT INTO group_members (group_id, student_id) VALUES ({g_id}, {int(m_id)}) ON CONFLICT DO NOTHING;")
                             member_count += 1
@@ -440,7 +441,7 @@ class handler(BaseHTTPRequestHandler):
                             pass
                 result = res["rows"][0]
                 result["memberCount"] = member_count
-                result["memberIds"] = [leader_id] + [int(m) for m in member_ids if int(m) != int(leader_id)]
+                result["memberIds"] = [admin_id] + [int(m) for m in member_ids if int(m) != int(admin_id)]
                 self.send_json(result, 200)
             except Exception as e:
                 self.send_json({"error": str(e)}, 500)
