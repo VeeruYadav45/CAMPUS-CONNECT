@@ -57,18 +57,37 @@ def to_int(value, field):
     except (TypeError, ValueError):
         raise BadRequest(f"'{field}' must be an integer")
 
-def pg_text_array(items, field):
+def pg_text_array(items, field, max_items=20, max_len=50):
     """Encode a list of strings as a Postgres array literal, e.g. {"C++","AI"}.
-    Passed as a parameter with ::text[], so quotes in items cannot escape."""
+    Passed as a parameter with ::text[], so quotes in items cannot escape.
+    Items are trimmed; empty ones dropped; size limits give a clear 400."""
     if items is None:
         items = []
     if not isinstance(items, list):
         raise BadRequest(f"'{field}' must be a list")
+    cleaned = [str(item).strip() for item in items if str(item).strip()]
+    if len(cleaned) > max_items:
+        raise BadRequest(f"'{field}' can have at most {max_items} items")
     parts = []
-    for item in items:
-        text = str(item).replace("\\", "\\\\").replace('"', '\\"')
+    for text in cleaned:
+        if len(text) > max_len:
+            raise BadRequest(f"each item in '{field}' must be at most {max_len} characters")
+        text = text.replace("\\", "\\\\").replace('"', '\\"')
         parts.append(f'"{text}"')
     return "{" + ",".join(parts) + "}"
+
+def text_field(value, field, max_len, required=False):
+    """Trimmed text from user input with a length limit (400 instead of a DB error)."""
+    text = "" if value is None else str(value).strip()
+    if required and not text:
+        raise BadRequest(f"'{field}' cannot be empty")
+    if len(text) > max_len:
+        raise BadRequest(f"'{field}' must be at most {max_len} characters")
+    return text
+
+def lower_set(items):
+    """Case-insensitive set of skills/interests ("Python" == "python")."""
+    return {str(x).strip().lower() for x in (items or []) if str(x).strip()}
 
 class AuthError(Exception):
     """401 = not signed in / invalid token, 403 = signed in but not allowed."""
@@ -407,12 +426,12 @@ class handler(BaseHTTPRequestHandler):
                 if not me:
                     self.send_json([], 200)
                     return
-                me_set = set(me.get("skills") or []) | set(me.get("interests") or [])
+                me_set = lower_set(me.get("skills")) | lower_set(me.get("interests"))
                 results = []
                 for s in students:
                     if s["id"] == s_id:
                         continue
-                    other_set = set(s.get("skills") or []) | set(s.get("interests") or [])
+                    other_set = lower_set(s.get("skills")) | lower_set(s.get("interests"))
                     union = me_set | other_set
                     inter = me_set & other_set
                     score = len(inter) / len(union) if union else 0.0
@@ -452,16 +471,18 @@ class handler(BaseHTTPRequestHandler):
             try:
                 proj_id = path_id(path, 'project-posts')
                 k = to_int(qs.get('k', ['6'])[0], "k")
+                if k < 1 or k > 50:
+                    raise BadRequest("k must be between 1 and 50")
                 p_res = query_neon("SELECT required_skills FROM project_posts WHERE id = $1;", [proj_id])
                 if not p_res.get("rows"):
                     self.send_json({"results": []})
                     return
-                req_skills = set(p_res["rows"][0].get("required_skills") or [])
+                req_skills = lower_set(p_res["rows"][0].get("required_skills"))
                 s_res = query_neon("SELECT id, name, department, year, skills, interests FROM students ORDER BY id;")
                 students = s_res.get("rows", [])
                 candidates = []
                 for s in students:
-                    s_skills = set(s.get("skills") or [])
+                    s_skills = lower_set(s.get("skills"))
                     union = req_skills | s_skills
                     inter = req_skills & s_skills
                     score = len(inter) / len(union) if union else 0.0
@@ -469,7 +490,8 @@ class handler(BaseHTTPRequestHandler):
                         "studentId": s["id"], "name": s["name"],
                         "department": s["department"], "year": s["year"],
                         "score": round(score, 4), "student": s,
-                        "matchedSkills": list(inter)
+                        # show the student's own spelling of each matched skill
+                        "matchedSkills": [sk for sk in (s.get("skills") or []) if str(sk).strip().lower() in inter]
                     })
                 candidates.sort(key=lambda x: x["score"], reverse=True)
                 self.send_json({"results": candidates[:k]})
@@ -521,12 +543,12 @@ class handler(BaseHTTPRequestHandler):
                 if existing:
                     self.send_json(existing[0], 200)
                     return
-                dept = str(body.get('department', 'CSE'))
+                dept = text_field(body.get('department', 'CSE'), "department", 50) or 'CSE'
                 year = to_int(body.get('year', 2), "year")
                 skills = pg_text_array(body.get('skills', ['C++', 'Python', 'DSA']), "skills")
                 interests = pg_text_array(body.get('interests', ['Web Dev', 'AI']), "interests")
                 sql = "INSERT INTO students (name, email, department, year, skills, interests) VALUES ($1, $2, $3, $4, $5::text[], $6::text[]) ON CONFLICT (email) DO NOTHING RETURNING id, name, email, department, year, skills, interests;"
-                rows = query_neon(sql, [ms_name, email, dept, year, skills, interests]).get("rows", [])
+                rows = query_neon(sql, [ms_name[:100], email, dept, year, skills, interests]).get("rows", [])
                 if not rows:   # created by a parallel request a moment ago
                     rows = query_neon(find, [email]).get("rows", [])
                 self.send_json(rows[0], 200)
@@ -540,8 +562,10 @@ class handler(BaseHTTPRequestHandler):
                 s_id = path_id(path, 'students')
                 if self.current_student_id() != s_id:
                     raise AuthError("you can only edit your own profile", 403)
-                dept = str(body.get('department', 'CSE'))
+                dept = text_field(body.get('department', 'CSE'), "department", 50, required=True)
                 year = to_int(body.get('year', 2), "year")
+                if year < 1 or year > 6:
+                    raise BadRequest("year must be between 1 and 6")
                 skills = pg_text_array(body.get('skills', []), "skills")
                 interests = pg_text_array(body.get('interests', []), "interests")
                 sql = "UPDATE students SET department = $1, year = $2, skills = $3::text[], interests = $4::text[] WHERE id = $5 RETURNING id, name, department, year, skills, interests;"
@@ -581,10 +605,12 @@ class handler(BaseHTTPRequestHandler):
         if '/project-posts' in path and not any(x in path for x in ['top-k', 'create-group']):
             try:
                 author_id = self.current_student_id()   # always you, whatever the form says
-                p_title = str(body.get('projectTitle', 'Project'))
+                p_title = text_field(body.get('projectTitle', 'Project'), "projectTitle", 200, required=True)
                 skills = pg_text_array(body.get('requiredSkills', []), "requiredSkills")
                 size = to_int(body.get('teamSizeNeeded', 3), "teamSizeNeeded")
-                content = str(body.get('content') or p_title or 'Project collaboration')
+                if size < 1 or size > 20:
+                    raise BadRequest("teamSizeNeeded must be between 1 and 20")
+                content = text_field(body.get('content') or p_title, "content", 2000) or 'Project collaboration'
                 s_res = query_neon("SELECT name FROM students WHERE id = $1;", [author_id])
                 author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
                 sql = "INSERT INTO project_posts (author_id, author_name, project_title, required_skills, team_size_needed, content) VALUES ($1, $2, $3, $4::text[], $5, $6) RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
@@ -598,7 +624,7 @@ class handler(BaseHTTPRequestHandler):
         if (path.endswith('/api/posts') or path.endswith('/posts')) and '/groups/' not in path:
             try:
                 author_id = self.current_student_id()
-                content = str(body.get('content', ''))
+                content = text_field(body.get('content'), "content", 2000, required=True)
                 s_res = query_neon("SELECT name FROM students WHERE id = $1;", [author_id])
                 author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
                 sql = "INSERT INTO posts (author_id, author_name, content) VALUES ($1, $2, $3) RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
@@ -621,8 +647,8 @@ class handler(BaseHTTPRequestHandler):
                         return
                     if proj[0]["author_id"] != admin_id:
                         raise AuthError("only the project author can create its team", 403)
-                name = str(body.get('groupName') or body.get('name', 'Team'))
-                desc = str(body.get('description', 'Collaboration team'))
+                name = text_field(body.get('groupName') or body.get('name', 'Team'), "name", 150, required=True)
+                desc = text_field(body.get('description', 'Collaboration team'), "description", 1000)
                 raw_members = body.get('memberIds', [])
                 if not isinstance(raw_members, list):
                     raise BadRequest("'memberIds' must be a list")
@@ -686,7 +712,7 @@ class handler(BaseHTTPRequestHandler):
                 member = query_neon("SELECT 1 FROM group_members WHERE group_id = $1 AND student_id = $2;", [g_id, student_id])
                 if not member.get("rows"):
                     raise AuthError("join the group to post in it", 403)
-                content = str(body.get('content', ''))
+                content = text_field(body.get('content'), "content", 2000, required=True)
                 sql = "INSERT INTO group_posts (group_id, student_id, content) VALUES ($1, $2, $3) RETURNING id, student_id as \"studentId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
                 res = query_neon(sql, [g_id, student_id, content])
                 self.send_json(res["rows"][0], 200)
@@ -701,7 +727,7 @@ class handler(BaseHTTPRequestHandler):
                 r_id = to_int(body.get('receiverId'), "receiverId")
                 if r_id == s_id:
                     raise BadRequest("you cannot message yourself")
-                content = str(body.get('content', ''))
+                content = text_field(body.get('content'), "content", 2000, required=True)
                 sql = "INSERT INTO messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING id, sender_id as \"senderId\", receiver_id as \"receiverId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
                 res = query_neon(sql, [s_id, r_id, content])
                 self.send_json(res["rows"][0], 200)

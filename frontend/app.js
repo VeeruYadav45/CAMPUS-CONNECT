@@ -72,9 +72,20 @@ async function apiRequest(method, endpoint, body) {
   }
 }
 
+// Identical writes already on their way (double click, Enter + click...) are
+// not sent twice: the second caller just waits for the first request.
+const pendingWrites = new Map();
+
 const API = {
   get(endpoint) { return apiRequest('GET', endpoint); },
-  post(endpoint, body) { return apiRequest('POST', endpoint, body || {}); }
+  post(endpoint, body) {
+    const key = endpoint + '|' + JSON.stringify(body || {});
+    if (pendingWrites.has(key)) return pendingWrites.get(key);
+    const request = apiRequest('POST', endpoint, body || {})
+      .finally(() => pendingWrites.delete(key));
+    pendingWrites.set(key, request);
+    return request;
+  }
 };
 
 // The signed-in student's ID (saved for this browser tab), or null
@@ -236,7 +247,7 @@ function populateSelectDropdowns() {
   const grpAdmin = document.getElementById('grp-admin');
 
   const optionsHtml = State.students.map(s =>
-    `<option value="${s.id}">#${s.id} ${escapeHtml(s.name)} (${s.department} Y${s.year})</option>`
+    `<option value="${s.id}">#${s.id} ${escapeHtml(s.name)} (${escapeHtml(s.department)} Y${s.year})</option>`
   ).join('');
 
   if (currentSelect) currentSelect.innerHTML = optionsHtml;
@@ -299,7 +310,7 @@ async function renderStudentsGrid() {
           <div class="student-avatar">${escapeHtml(s.name.charAt(0))}</div>
           <div class="student-info">
             <div class="student-name">${escapeHtml(s.name)} ${isActive ? '<span class="badge-pill">You</span>' : ''}</div>
-            <div class="student-meta">${s.department} &bull; Year ${s.year} &bull; ID: #${s.id}</div>
+            <div class="student-meta">${escapeHtml(s.department)} &bull; Year ${s.year} &bull; ID: #${s.id}</div>
           </div>
         </div>
 
@@ -476,7 +487,7 @@ async function updateMutualsPanel() {
     } else {
       activeFriendsContainer.innerHTML = friends.map(f => `
         <div class="friend-item-row">
-          <span>#${f.id} <strong>${escapeHtml(f.name)}</strong> (${f.department})</span>
+          <span>#${f.id} <strong>${escapeHtml(f.name)}</strong> (${escapeHtml(f.department)})</span>
           <span class="badge-pill">Direct</span>
         </div>
       `).join('');
@@ -621,7 +632,7 @@ window.selectProjectPost = async function (projectId) {
             <div class="candidate-card selected-for-team" id="candidate-card-${sId}" data-id="${sId}">
               <div class="candidate-rank-badge">Rank #${idx + 1}</div>
               <div class="student-name">${escapeHtml(sName)}</div>
-              <div class="student-meta">${sDept} &bull; Year ${sYear}</div>
+              <div class="student-meta">${escapeHtml(sDept)} &bull; Year ${escapeHtml(sYear)}</div>
               
               <div>
                 <div class="stat-row">
@@ -775,9 +786,9 @@ async function refreshGroupPosts(groupId) {
       return `
         <div class="feed-post-card" style="padding:0.85rem;">
           <div class="post-header">
-            <div class="user-avatar-sm" style="width:26px; height:26px; font-size:0.75rem;">${author ? author.name.charAt(0) : 'U'}</div>
+            <div class="user-avatar-sm" style="width:26px; height:26px; font-size:0.75rem;">${escapeHtml(author ? author.name.charAt(0) : 'U')}</div>
             <span class="post-author">${escapeHtml(author ? author.name : 'Student #' + p.studentId)}</span>
-            <span class="post-timestamp">${p.timestamp || ''}</span>
+            <span class="post-timestamp">${escapeHtml(p.timestamp || '')}</span>
           </div>
           <div class="post-body" style="font-size:0.88rem;">${escapeHtml(p.content)}</div>
         </div>
@@ -797,14 +808,16 @@ function renderFeedTimeline() {
   }
 
   timeline.innerHTML = State.feedPosts.map(p => {
-    const author = State.students.find(s => s.id === p.studentId);
+    const authorId = p.authorId ?? p.studentId;   // Python API: authorId, C++: both
+    const author = State.students.find(s => s.id === authorId);
+    const authorName = author ? author.name : (p.authorName || `Student #${authorId}`);
     return `
       <div class="feed-post-card">
         <div class="post-header">
-          <div class="user-avatar-sm">${author ? author.name.charAt(0) : 'U'}</div>
+          <div class="user-avatar-sm">${escapeHtml(authorName.charAt(0) || 'U')}</div>
           <div>
-            <div class="post-author">${escapeHtml(author ? author.name : 'Student #' + p.studentId)}</div>
-            <div class="post-timestamp">${p.timestamp || ''}</div>
+            <div class="post-author">${escapeHtml(authorName)}</div>
+            <div class="post-timestamp">${escapeHtml(p.timestamp || '')}</div>
           </div>
         </div>
         <div class="post-body">${escapeHtml(p.content)}</div>
