@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+import urllib.error
 import urllib.request
 import ssl
 import os
@@ -42,8 +43,16 @@ def query_neon(sql, params=None):
         }
     )
     ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            detail = json.loads(e.read().decode("utf-8")).get("message", "")
+        except Exception:
+            detail = ""
+        print("Neon query failed:", e.code, detail, "| SQL:", sql[:200])   # Vercel function logs
+        raise RuntimeError(f"database error: {detail or e.reason}")
 
 class BadRequest(Exception):
     pass
@@ -209,7 +218,8 @@ SCHEMA_STATEMENTS = [
     """CREATE TABLE IF NOT EXISTS group_posts (
         id SERIAL PRIMARY KEY,
         group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
-        student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+        author_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+        author_name VARCHAR(100) NOT NULL,
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""",
@@ -504,16 +514,14 @@ class handler(BaseHTTPRequestHandler):
             try:
                 g_id = path_id(path, 'groups')
                 sql = """
-                    SELECT id, student_id as "studentId", content,
+                    SELECT id, author_id as "studentId", author_name as "authorName", content,
                            to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp
                     FROM group_posts WHERE group_id = $1 ORDER BY id ASC;
                 """
                 res = query_neon(sql, [g_id])
                 self.send_json(res.get("rows", []))
-            except BadRequest as e:
+            except Exception as e:
                 self.send_error_json(e)
-            except Exception:
-                self.send_json([])
             return
 
         self.send_json({"error": "Endpoint not found"}, 404)
@@ -546,16 +554,16 @@ class handler(BaseHTTPRequestHandler):
                     g_id = path_id(path, 'groups')
                     p_id = to_int(parts[-2], "post id")
                     me = self.current_student_id()
-                    rows = query_neon("SELECT gp.student_id, g.admin_id FROM group_posts gp JOIN groups g ON g.id = gp.group_id WHERE gp.id = $1 AND gp.group_id = $2;", [p_id, g_id]).get("rows", [])
+                    rows = query_neon("SELECT gp.author_id, g.admin_id FROM group_posts gp JOIN groups g ON g.id = gp.group_id WHERE gp.id = $1 AND gp.group_id = $2;", [p_id, g_id]).get("rows", [])
                     if not rows:
                         self.send_json({"error": "Post not found"}, 404)
                         return
-                    is_author = rows[0]["student_id"] == me
+                    is_author = rows[0]["author_id"] == me
                     if action == 'edit':
                         if not is_author:
                             raise AuthError("you can only edit your own posts", 403)
                         content = text_field(body.get('content'), "content", 2000, required=True)
-                        res = query_neon("UPDATE group_posts SET content = $1 WHERE id = $2 RETURNING id, student_id as \"studentId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;", [content, p_id])
+                        res = query_neon("UPDATE group_posts SET content = $1 WHERE id = $2 RETURNING id, author_id as \"studentId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;", [content, p_id])
                         self.send_json(res["rows"][0])
                     else:
                         if not (is_author or rows[0]["admin_id"] == me):
@@ -776,6 +784,9 @@ class handler(BaseHTTPRequestHandler):
             try:
                 g_id = path_id(path, 'groups')
                 student_id = self.current_student_id()
+                admin = query_neon("SELECT admin_id FROM groups WHERE id = $1;", [g_id]).get("rows", [])
+                if admin and admin[0]["admin_id"] == student_id:
+                    raise BadRequest("the group admin cannot leave the group")
                 query_neon("DELETE FROM group_members WHERE group_id = $1 AND student_id = $2;", [g_id, student_id])
                 self.send_json({"groupId": g_id, "studentId": student_id})
             except Exception as e:
@@ -791,8 +802,10 @@ class handler(BaseHTTPRequestHandler):
                 if not member.get("rows"):
                     raise AuthError("join the group to post in it", 403)
                 content = text_field(body.get('content'), "content", 2000, required=True)
-                sql = "INSERT INTO group_posts (group_id, student_id, content) VALUES ($1, $2, $3) RETURNING id, student_id as \"studentId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
-                res = query_neon(sql, [g_id, student_id, content])
+                name_rows = query_neon("SELECT name FROM students WHERE id = $1;", [student_id]).get("rows", [])
+                author_name = name_rows[0]["name"] if name_rows else "Student"
+                sql = "INSERT INTO group_posts (group_id, author_id, author_name, content) VALUES ($1, $2, $3, $4) RETURNING id, author_id as \"studentId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
+                res = query_neon(sql, [g_id, student_id, author_name, content])
                 self.send_json(res["rows"][0], 200)
             except Exception as e:
                 self.send_error_json(e)

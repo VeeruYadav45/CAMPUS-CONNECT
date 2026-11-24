@@ -796,7 +796,7 @@ async function refreshGroupPosts(groupId) {
         <div class="feed-post-card" style="padding:0.85rem;">
           <div class="post-header">
             <div class="user-avatar-sm" style="width:26px; height:26px; font-size:0.75rem;">${escapeHtml(author ? author.name.charAt(0) : 'U')}</div>
-            <span class="post-author">${escapeHtml(author ? author.name : 'Student #' + p.studentId)}</span>
+            <span class="post-author">${escapeHtml(author ? author.name : (p.authorName || 'Student #' + p.studentId))}</span>
             <span class="post-timestamp">${escapeHtml(p.timestamp || '')}</span>
             ${(mine || iAmAdmin) ? `<span class="post-actions">
               ${mine ? `<button class="post-action-btn" onclick="editGroupPost(${groupId}, ${p.id})">Edit</button>` : ''}
