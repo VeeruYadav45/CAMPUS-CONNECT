@@ -31,7 +31,7 @@
     rel="stylesheet">
 
 
-  <link rel="stylesheet" href="style.css?v=2.9">
+  <link rel="stylesheet" href="style.css?v=3.0">
   <link rel="stylesheet" href="cat-companion.css">
 
 
@@ -281,6 +281,7 @@
 
 
           <span>Groups & Teams</span>
+          <span class="nav-badge hidden" id="invites-badge" title="Team invitations"></span>
 
 
         </button>
@@ -956,6 +957,12 @@
 
 
 
+
+        <div class="glass-card hidden" id="team-invites-card" style="margin-bottom:1.25rem;">
+          <h3 class="panel-section-title">Team Invitations</h3>
+          <p class="text-muted small mt-2">You join a team only if you accept.</p>
+          <div id="team-invites-list" class="friends-mini-list mt-2"></div>
+        </div>
 
         <div class="groups-grid" id="groups-grid">
 
@@ -1659,7 +1666,7 @@
 
 
 
-  <script src="app.js?v=2.9"></script>
+  <script src="app.js?v=3.0"></script>
   <script src="cat-companion.js"></script>
 
 

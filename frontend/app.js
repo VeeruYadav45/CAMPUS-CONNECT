@@ -15,7 +15,8 @@ const State = {
   d3Simulation: null,
   selectedChatPartnerId: null,
   chatPollTimer: null,
-  requests: { incoming: [], outgoing: [] }
+  requests: { incoming: [], outgoing: [] },
+  teamInvites: []
 };
 
 // --- API Helpers ---
@@ -208,6 +209,7 @@ async function refreshAllData() {
     State.projectPosts = projectPosts || [];
 
     await loadConnectionRequests();
+    await loadTeamInvites();
     updateCounters();
     populateSelectDropdowns();
     renderStudentsGrid();
@@ -405,6 +407,57 @@ window.removeConnection = async function (otherId, name) {
   try {
     await API.post('/api/connections/remove', { studentId: otherId });
     showToast('Connection removed.', 'success');
+    await refreshAllData();
+  } catch (e) { }
+};
+
+// --- Team invitations ---
+async function loadTeamInvites() {
+  const badge = document.getElementById('invites-badge');
+  const card = document.getElementById('team-invites-card');
+  const list = document.getElementById('team-invites-list');
+  if (!signedInStudentId()) {
+    State.teamInvites = [];
+    badge?.classList.add('hidden');
+    card?.classList.add('hidden');
+    return;
+  }
+  try {
+    State.teamInvites = await API.get('/api/team-invites');
+  } catch (e) {
+    State.teamInvites = [];
+  }
+  const n = State.teamInvites.length;
+  if (badge) { badge.textContent = n; badge.classList.toggle('hidden', n === 0); }
+  if (card) card.classList.toggle('hidden', n === 0);
+  if (list) {
+    list.innerHTML = State.teamInvites.map(i => `
+      <div class="friend-item-row pymk-row">
+        <div class="pymk-info">
+          <span><strong>${escapeHtml(i.group.name)}</strong> ${i.group.isProjectGroup ? '(project team)' : ''}</span>
+          <span class="pymk-via">invited by ${escapeHtml(i.invitedBy.name || 'the admin')}</span>
+        </div>
+        <span class="post-actions">
+          <button class="btn btn-primary btn-sm" onclick="answerInvite(${i.id}, 'accept')">Accept</button>
+          <button class="post-action-btn" onclick="answerInvite(${i.id}, 'decline')">Decline</button>
+        </span>
+      </div>`).join('');
+  }
+}
+
+window.answerInvite = async function (inviteId, action) {
+  try {
+    await API.post(`/api/team-invites/${inviteId}/${action}`, {});
+    showToast(action === 'accept' ? 'You joined the team!' : 'Invitation declined.', 'success');
+    await refreshAllData();
+  } catch (e) { }
+};
+
+window.deleteGroup = async function (groupId, name) {
+  if (!confirm(`Delete the group "${name}"? Its members, discussion and invitations are removed. This cannot be undone.`)) return;
+  try {
+    await API.post(`/api/groups/${groupId}/delete`, {});
+    showToast('Group deleted.', 'success');
     await refreshAllData();
   } catch (e) { }
 };
@@ -678,6 +731,35 @@ window.selectProjectPost = async function (projectId) {
 
   const aId = project.authorId || project.studentId;
   const author = State.students.find(s => s.id === aId);
+  const me = signedInStudentId();
+  const isAuthor = !!me && aId === me;
+
+  // One team per project; selected students get invitations (signed-in site).
+  // The local C++ demo (no sign-in) keeps the old direct "assemble" behaviour.
+  let team = null;
+  if (me) {
+    try { team = await API.get(`/api/project-posts/${projectId}/team`); } catch (e) { }
+  }
+  const hasTeam = !!(team && team.groupId);
+  const canPick = !me || isAuthor;
+  const teamButtons = !me
+    ? `<button class="btn btn-primary" id="btn-create-project-group" onclick="createGroupFromTopK(${projectId})">🚀 Assemble Project Group</button>`
+    : isAuthor
+      ? (hasTeam
+          ? `<button class="btn btn-primary" id="btn-create-project-group" onclick="createGroupFromTopK(${projectId})">📨 Invite selected</button>
+             <button class="btn btn-secondary" onclick="openGroupDiscussion(${team.groupId})">Open team</button>`
+          : `<button class="btn btn-primary" id="btn-create-project-group" onclick="createGroupFromTopK(${projectId})">🚀 Assemble Project Team</button>`)
+      : (hasTeam ? `<button class="btn btn-secondary" onclick="openGroupDiscussion(${team.groupId})">View team</button>` : '');
+  const candidateStatus = (sId) => {
+    if (sId === aId) return `<span class="badge-pill">Project author</span>`;
+    if (hasTeam && team.memberIds.includes(sId)) return `<span class="badge-pill">✓ In team</span>`;
+    if (hasTeam && team.invitedIds.includes(sId)) return `<span class="text-muted small">Invited, waiting for reply</span>`;
+    if (!canPick) return '';
+    return `<label style="font-size:0.75rem; color:var(--text-muted); cursor:pointer;">
+              <input type="checkbox" class="candidate-checkbox" value="${sId}" ${me ? '' : 'checked'}>
+              ${me ? 'Invite to team' : 'Include in Team Group'}
+            </label>`;
+  };
 
   // Fetch Top-K recommendations from C++ backend
   let topKResults = [];
@@ -702,9 +784,7 @@ window.selectProjectPost = async function (projectId) {
           <button class="post-action-btn" onclick="editProjectPost(${projectId})">Edit</button>
           <button class="post-action-btn danger" onclick="deleteProjectPost(${projectId})">Delete</button>
         ` : ''}
-        <button class="btn btn-primary" id="btn-create-project-group" onclick="createGroupFromTopK(${projectId})">
-          🚀 Assemble Project Group
-        </button>
+        ${teamButtons}
       </div>
     </div>
 
@@ -756,10 +836,7 @@ window.selectProjectPost = async function (projectId) {
               </div>
 
               <div class="mt-2">
-                <label style="font-size:0.75rem; color:var(--text-muted); cursor:pointer;">
-                  <input type="checkbox" class="candidate-checkbox" value="${sId}" checked>
-                  Include in Team Group
-                </label>
+                ${candidateStatus(sId)}
               </div>
             </div>
           `;
@@ -775,6 +852,19 @@ window.createGroupFromTopK = async function (projectId) {
 
   const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
   const memberIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+  if (signedInStudentId()) {
+    // Signed-in site: builds the project's single team and INVITES the selected students
+    try {
+      const res = await API.post(`/api/project-posts/${projectId}/create-group`, { memberIds });
+      const n = (res.invited || []).length;
+      const invitedText = n ? `Invited ${n} student${n === 1 ? '' : 's'}. They join if they accept.` : 'No new invitations (already invited or in the team).';
+      showToast(res.created ? `Team "${res.name}" created. ${invitedText}` : invitedText, 'success');
+      await refreshAllData();
+      selectProjectPost(projectId);
+    } catch (e) { }
+    return;
+  }
 
   try {
     const leaderId = project.authorId || project.studentId;
@@ -826,7 +916,11 @@ function renderGroupsGrid() {
           <button class="btn btn-secondary btn-sm" onclick="openGroupDiscussion(${g.id})">
             💬 Discussions
           </button>
-          ${isMember ? `
+          ${signedInStudentId() && g.leaderId === signedInStudentId() ? `
+            <button class="btn btn-secondary btn-sm" style="color:var(--danger);" onclick='deleteGroup(${g.id}, ${JSON.stringify(escapeHtml(g.name))})'>
+              Delete Group
+            </button>
+          ` : isMember ? `
             <button class="btn btn-secondary btn-sm" style="color:var(--danger);" onclick="leaveGroup(${g.id})">
               Leave Group
             </button>
