@@ -707,6 +707,31 @@ textarea:focus {
   font-size: 0.85rem;
 }
 
+/* People You May Know */
+.pymk-list {
+  max-height: 280px;
+}
+
+.pymk-row {
+  gap: 0.5rem;
+}
+
+.pymk-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pymk-via {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.pymk-row .btn-sm {
+  flex-shrink: 0;
+}
+
 /* ==========================================================================
    Project Matcher & Top-K Matrix
    ========================================================================== */

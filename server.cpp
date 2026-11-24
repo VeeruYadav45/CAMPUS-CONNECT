@@ -516,6 +516,46 @@ int main() {
         }
     });
 
+    // GET /api/students/:id/suggestions?limit=10 -> "People you may know"
+    // Friends of friends ranked by number of mutual friends (Graph::suggestFriends)
+    // Each item: { student, mutualCount, mutualFriends: [{id, name}] }
+    svr.Get(R"(/api/students/(\d+)/suggestions)", [](const httplib::Request &req, httplib::Response &res) {
+        std::lock_guard<std::mutex> lock(serverMutex);
+        try {
+            int id = stoi(req.matches[1]);
+            if (!store.findStudentById(id)) {
+                return sendJsonError(res, "Student not found", 404);
+            }
+            int limit = 10;
+            if (req.has_param("limit")) {
+                limit = stoi(req.get_param_value("limit"));
+                if (limit < 1 || limit > 50) return sendJsonError(res, "limit must be between 1 and 50");
+            }
+
+            json arr = json::array();
+            for (const FriendSuggestion &s : graph.suggestFriends(id)) {
+                if ((int)arr.size() >= limit) break;
+                Student *cs = store.findStudentById(s.studentId);
+                if (!cs) continue;
+                json mutuals = json::array();
+                for (int mid : s.mutualIds) {
+                    Student *ms = store.findStudentById(mid);
+                    mutuals.push_back({{"id", mid}, {"name", ms ? ms->getName() : "Student #" + to_string(mid)}});
+                }
+                json item;
+                item["student"] = studentToJson(*cs);
+                item["mutualCount"] = (int)s.mutualIds.size();
+                item["mutualFriends"] = mutuals;
+                arr.push_back(item);
+            }
+            sendJsonOk(res, arr);
+        } catch (const std::logic_error &) {   // stoi: not a number / out of range
+            sendJsonError(res, "limit must be an integer");
+        } catch (const exception &e) {
+            sendJsonError(res, string("Error: ") + e.what(), 500);
+        }
+    });
+
     // 6. GET /api/students/:id (exact match)
     svr.Get(R"(/api/students/(\d+)$)", [](const httplib::Request &req, httplib::Response &res) {
         std::lock_guard<std::mutex> lock(serverMutex);

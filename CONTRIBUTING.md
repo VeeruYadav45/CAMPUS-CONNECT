@@ -6,7 +6,7 @@ Semester PBL project: a campus networking app built around a C++ data-structures
 ## Layout
 - `include/`, `src/`: DSA core
   - `DataStore`: hash maps (students/posts/groups by ID) + inverted indexes (skill, interest, department)
-  - `Graph`: adjacency list; `bfs`, `peopleYouMayKnow` (BFS with distance levels)
+  - `Graph`: adjacency list; `bfs`, `peopleYouMayKnow` (BFS with distance levels), `suggestFriends` (same, ranked by mutual friends; served at `GET /api/students/:id/suggestions`)
   - `JaccardMatching` (implements `MatchingStrategy`): skill/interest similarity
   - `TopKRanker`: top-k with a bounded min-heap, O(N log k)
   - `Post` → `ProjectPost`, `Group` → `ProjectGroup`: stored via `unique_ptr` + virtual `clone()` (avoids object slicing)

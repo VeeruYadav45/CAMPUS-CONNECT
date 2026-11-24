@@ -440,6 +440,41 @@ async function updateMutualsPanel() {
   } catch (e) {
     // Error handled
   }
+  renderPeopleYouMayKnow();
+}
+
+// "People You May Know": friends of friends ranked by mutual connections
+// (GET /api/students/:id/suggestions -> Graph::suggestFriends / BFS 2 steps)
+async function renderPeopleYouMayKnow() {
+  const list = document.getElementById('people-you-may-know-list');
+  if (!list || !State.activeStudentId) return;
+  const forStudent = State.activeStudentId;
+
+  try {
+    const suggestions = await API.get(`/api/students/${forStudent}/suggestions?limit=8`);
+    if (forStudent !== State.activeStudentId) return;   // user switched while loading
+    if (suggestions.length === 0) {
+      list.innerHTML = `<span class="text-muted small">No suggestions yet. Connect with a few students and their friends will show up here.</span>`;
+      return;
+    }
+    list.innerHTML = suggestions.map(item => {
+      const s = item.student;
+      const names = item.mutualFriends.map(m => escapeHtml(m.name));
+      const via = names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
+      const label = `${item.mutualCount} mutual friend${item.mutualCount === 1 ? '' : 's'}`;
+      return `
+        <div class="friend-item-row pymk-row">
+          <div class="pymk-info">
+            <span>#${s.id} <strong>${escapeHtml(s.name)}</strong> (${escapeHtml(s.department)})</span>
+            <span class="pymk-via" title="${label}: ${names.join(', ')}">${label} &middot; via ${via}</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="connectWithStudent(${s.id})">+ Connect</button>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<span class="text-muted small">Suggestions are unavailable right now.</span>`;
+  }
 }
 
 // --- TAB 3: Projects & Top-K Teammate Matcher ---

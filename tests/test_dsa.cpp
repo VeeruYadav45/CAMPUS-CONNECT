@@ -69,6 +69,69 @@ static void testGraph() {
     CHECK(!contains(pymk, 4));                // 3 steps away
 }
 
+// ---------------------------------------------------------------- Graph: ranked suggestions
+static void testSuggestFriends() {
+    Graph g;
+    CHECK(g.suggestFriends(1).empty());   // unknown student
+    g.addStudent(1);
+    CHECK(g.suggestFriends(1).empty());   // no friends yet
+
+    // Demo network from the paper (Fig. 3): Tanvay = 1
+    // 1-2, 1-5, 1-4, 2-5, 2-6, 5-6, 5-8, 6-8, and a separate 3-7
+    Graph d;
+    d.addConnection(1, 2); d.addConnection(1, 5); d.addConnection(1, 4);
+    d.addConnection(2, 5); d.addConnection(2, 6); d.addConnection(5, 6);
+    d.addConnection(5, 8); d.addConnection(6, 8); d.addConnection(3, 7);
+    vector<FriendSuggestion> s = d.suggestFriends(1);
+    CHECK(s.size() == 2);
+    if (s.size() == 2) {
+        CHECK(s[0].studentId == 6);                                   // Arjun first:
+        CHECK(s[0].mutualIds == vector<int>({2, 5}));                 //   via Ravi and Neha
+        CHECK(s[1].studentId == 8);                                   // then Karan:
+        CHECK(s[1].mutualIds == vector<int>({5}));                    //   via Neha
+    }
+    CHECK(d.suggestFriends(3).empty());   // Priya: her only friend has no other friends
+
+    // Equal mutual counts -> smaller ID first
+    Graph t;
+    t.addConnection(1, 2); t.addConnection(1, 3);
+    t.addConnection(2, 10); t.addConnection(3, 9);
+    vector<FriendSuggestion> ts = t.suggestFriends(1);
+    CHECK(ts.size() == 2 && ts[0].studentId == 9 && ts[1].studentId == 10);
+
+    // Random graphs: same students as peopleYouMayKnow, and each
+    // mutual list equals the brute-force intersection of friend lists
+    mt19937 rng(7);
+    for (int round = 0; round < 200; round++) {
+        Graph r;
+        int n = 2 + (int)(rng() % 15);
+        for (int i = 1; i <= n; i++) r.addStudent(i);
+        int edges = (int)(rng() % (n * 2));
+        for (int e = 0; e < edges; e++) {
+            r.addConnection(1 + (int)(rng() % n), 1 + (int)(rng() % n));
+        }
+        int me = 1 + (int)(rng() % n);
+        vector<FriendSuggestion> got = r.suggestFriends(me);
+        vector<int> expected = r.peopleYouMayKnow(me);
+        CHECK(got.size() == expected.size());
+
+        vector<int> myFriends = r.getConnections(me);
+        for (size_t i = 0; i < got.size(); i++) {
+            CHECK(contains(expected, got[i].studentId));
+            vector<int> brute;
+            for (int f : r.getConnections(got[i].studentId)) {
+                if (contains(myFriends, f)) brute.push_back(f);
+            }
+            sort(brute.begin(), brute.end());
+            CHECK(got[i].mutualIds == brute);
+            if (i > 0) {   // ranked: more mutual friends first, ties by ID
+                size_t a = got[i - 1].mutualIds.size(), b = got[i].mutualIds.size();
+                CHECK(a > b || (a == b && got[i - 1].studentId < got[i].studentId));
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- DataStore index
 static void testDataStoreIndex() {
     DataStore store;
@@ -205,6 +268,7 @@ int main() {
     streambuf *old = cout.rdbuf(sink.rdbuf());
 
     testGraph();
+    testSuggestFriends();
     testDataStoreIndex();
     testNoSlicing();
     testGroup();

@@ -99,4 +99,15 @@ create_pg_res = post(f"/api/project-posts/{ppId}/create-group", {
 assert create_pg_res["ok"] and create_pg_res["data"]["isProjectGroup"]
 print("10. Project post -> Top-K -> Create Project Group verified")
 
+# 11. People you may know (friends of friends, ranked by mutual friends)
+sug_res = get("/api/students/1/suggestions")
+assert sug_res["ok"] and len(sug_res["data"]) > 0
+top = sug_res["data"][0]
+assert top["student"]["id"] == 6 and [m["id"] for m in top["mutualFriends"]] == [2, 5]  # Arjun via Ravi + Neha
+friend_ids = {s["id"] for s in get("/api/students/1/friends")["data"]}
+assert all(x["student"]["id"] not in friend_ids | {1} for x in sug_res["data"])  # never yourself or a friend
+counts = [x["mutualCount"] for x in sug_res["data"]]
+assert counts == sorted(counts, reverse=True)  # most mutual friends first
+print("11. GET /api/students/:id/suggestions (people you may know) verified")
+
 print("\nALL BACKEND API ENDPOINTS FUNCTIONING 100% PERFECTLY!")
