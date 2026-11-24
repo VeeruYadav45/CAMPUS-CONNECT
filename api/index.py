@@ -232,6 +232,35 @@ def send_connection_request(me, other):
         rows = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [me, other]).get("rows", [])
     return {"status": "pending", "requestId": rows[0]["id"] if rows else None, "studentId": other}
 
+def invite_to_group(group_id, inviter_id, student_ids):
+    """Invite students to a group. Skips unknown students, current members and
+    pending invitations. Returns the IDs actually invited."""
+    invited = []
+    for sid in student_ids:
+        if sid == inviter_id:
+            continue
+        if not query_neon("SELECT 1 FROM students WHERE id = $1;", [sid]).get("rows"):
+            continue
+        if query_neon("SELECT 1 FROM group_members WHERE group_id = $1 AND student_id = $2;", [group_id, sid]).get("rows"):
+            continue
+        rows = query_neon("INSERT INTO team_invites (group_id, student_id, invited_by) VALUES ($1, $2, $3) "
+                          "ON CONFLICT DO NOTHING RETURNING id;", [group_id, sid, inviter_id]).get("rows", [])
+        if rows:
+            invited.append(sid)
+    return invited
+
+def group_summary(group_id):
+    rows = query_neon("""
+        SELECT g.id, g.name, g.description, g.admin_id as "leaderId", g.is_project_group as "isProjectGroup",
+               COALESCE(array_agg(gm.student_id) FILTER (WHERE gm.student_id IS NOT NULL), '{}') as "memberIds"
+        FROM groups g LEFT JOIN group_members gm ON gm.group_id = g.id
+        WHERE g.id = $1 GROUP BY g.id;""", [group_id]).get("rows", [])
+    if not rows:
+        return None
+    g = rows[0]
+    g["memberCount"] = len(g["memberIds"])
+    return g
+
 def path_id(path, segment):
     """Return the integer that follows `segment` in the URL path, e.g. /groups/7/join -> 7."""
     parts = path.split('/')
@@ -278,6 +307,23 @@ SCHEMA_STATEMENTS = [
     )""",
     """CREATE UNIQUE INDEX IF NOT EXISTS connection_requests_one_pending
         ON connection_requests (from_id, to_id) WHERE status = 'pending'""",
+    # One team per project post (deleting the post keeps the team, drops the link)
+    """CREATE TABLE IF NOT EXISTS project_teams (
+        project_post_id INTEGER PRIMARY KEY REFERENCES project_posts(id) ON DELETE CASCADE,
+        group_id INTEGER NOT NULL UNIQUE REFERENCES groups(id) ON DELETE CASCADE
+    )""",
+    # Group/team invitations: invitees join only if they accept
+    """CREATE TABLE IF NOT EXISTS team_invites (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        invited_by INTEGER REFERENCES students(id) ON DELETE SET NULL,
+        status VARCHAR(10) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP
+    )""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS team_invites_one_pending
+        ON team_invites (group_id, student_id) WHERE status = 'pending'""",
 ]
 for _stmt in SCHEMA_STATEMENTS:
     try:
@@ -331,6 +377,49 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
+
+        # 0a. GET /api/project-posts/:id/team — the project's team (one per project).
+        #     Everyone sees members; only the author also sees pending invitations.
+        if '/project-posts/' in path and path.endswith('/team'):
+            try:
+                proj_id = path_id(path, 'project-posts')
+                proj = query_neon("SELECT author_id FROM project_posts WHERE id = $1;", [proj_id]).get("rows", [])
+                if not proj:
+                    raise ApiError("Project post not found", 404)
+                link = query_neon("SELECT group_id FROM project_teams WHERE project_post_id = $1;", [proj_id]).get("rows", [])
+                if not link:
+                    self.send_json({"groupId": None, "memberIds": [], "invitedIds": []})
+                    return
+                g = group_summary(link[0]["group_id"])
+                invited = []
+                try:
+                    if self.current_student_id() == proj[0]["author_id"]:
+                        invited = [r["student_id"] for r in query_neon(
+                            "SELECT student_id FROM team_invites WHERE group_id = $1 AND status = 'pending';", [g["id"]]).get("rows", [])]
+                except AuthError:
+                    pass
+                self.send_json({"groupId": g["id"], "groupName": g["name"], "memberIds": g["memberIds"], "invitedIds": invited})
+            except Exception as e:
+                self.send_error_json(e)
+            return
+
+        # 0b. GET /api/team-invites — invitations waiting for you
+        if path.endswith('/api/team-invites'):
+            try:
+                me = self.current_student_id()
+                rows = query_neon("""
+                    SELECT i.id, to_char(i.created_at, 'YYYY-MM-DD HH24:MI:SS') as "createdAt",
+                           g.id as group_id, g.name as group_name, g.is_project_group,
+                           s.id as inviter_id, s.name as inviter_name
+                    FROM team_invites i JOIN groups g ON g.id = i.group_id
+                    LEFT JOIN students s ON s.id = i.invited_by
+                    WHERE i.student_id = $1 AND i.status = 'pending' ORDER BY i.id DESC;""", [me]).get("rows", [])
+                self.send_json([{"id": r["id"], "createdAt": r["createdAt"],
+                                 "group": {"id": r["group_id"], "name": r["group_name"], "isProjectGroup": r["is_project_group"]},
+                                 "invitedBy": {"id": r["inviter_id"], "name": r["inviter_name"]}} for r in rows])
+            except Exception as e:
+                self.send_error_json(e)
+            return
 
         # 0. GET /api/connection-requests  — your incoming and outgoing pending requests
         if path.endswith('/api/connection-requests'):
@@ -643,6 +732,18 @@ class handler(BaseHTTPRequestHandler):
                         query_neon("DELETE FROM group_posts WHERE id = $1;", [p_id])
                         self.send_json({"deleted": p_id})
                     return
+                if len(parts) >= 3 and parts[-3] == 'groups' and action == 'delete':
+                    # POST /api/groups/:id/delete — the group admin only (posts, members, invites go too)
+                    g_id = to_int(parts[-2], "group id")
+                    me = self.current_student_id()
+                    rows = query_neon("SELECT admin_id FROM groups WHERE id = $1;", [g_id]).get("rows", [])
+                    if not rows:
+                        raise ApiError("Group not found", 404)
+                    if rows[0]["admin_id"] != me:
+                        raise AuthError("only the group admin can delete the group", 403)
+                    query_neon("DELETE FROM groups WHERE id = $1;", [g_id])
+                    self.send_json({"deleted": g_id})
+                    return
                 if len(parts) >= 3 and parts[-3] == 'project-posts':
                     # POST /api/project-posts/:id/edit {projectTitle, requiredSkills, teamSizeNeeded, content}
                     # POST /api/project-posts/:id/delete      — author only
@@ -689,6 +790,40 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
                 return
             self.send_json({"error": "Endpoint not found"}, 404)
+            return
+
+        # 0a. Team invitations
+        #     POST /api/team-invites/:id/accept|decline — the invited student
+        #     POST /api/team-invites/:id/cancel        — the group admin or whoever invited
+        if '/api/team-invites/' in path:
+            try:
+                me = self.current_student_id()
+                parts = path.split('/')
+                action = parts[-1]
+                inv_id = to_int(parts[-2], "invitation id")
+                rows = query_neon("SELECT i.group_id, i.student_id, i.invited_by, g.admin_id FROM team_invites i JOIN groups g ON g.id = i.group_id "
+                                  "WHERE i.id = $1 AND i.status = 'pending';", [inv_id]).get("rows", [])
+                if not rows:
+                    raise ApiError("Invitation not found (it may have been answered already)", 404)
+                inv = rows[0]
+                if action in ('accept', 'decline') and inv["student_id"] != me:
+                    raise AuthError("this invitation is for someone else", 403)
+                if action == 'cancel' and me not in (inv["invited_by"], inv["admin_id"]):
+                    raise AuthError("only the group admin can cancel this invitation", 403)
+                if action == 'accept':
+                    query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [inv["group_id"], me])
+                    query_neon("DELETE FROM team_invites WHERE id = $1;", [inv_id])
+                    self.send_json({"status": "joined", "groupId": inv["group_id"]})
+                elif action == 'decline':
+                    query_neon("UPDATE team_invites SET status = 'declined', responded_at = now() WHERE id = $1;", [inv_id])
+                    self.send_json({"status": "declined"})
+                elif action == 'cancel':
+                    query_neon("DELETE FROM team_invites WHERE id = $1;", [inv_id])
+                    self.send_json({"status": "cancelled"})
+                else:
+                    self.send_json({"error": "Endpoint not found"}, 404)
+            except Exception as e:
+                self.send_error_json(e)
             return
 
         # 0b. Connection requests
@@ -830,21 +965,12 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
             return
 
-        # 6. POST /api/groups or /api/project-posts/:id/create-group (Create Team / Group)
+        # 6. POST /api/groups                       — create a club; you are the admin
+        #    POST /api/project-posts/:id/create-group — the project's team: created once,
+        #       later calls reuse it. In both, memberIds get INVITATIONS (never auto-added).
         if 'create-group' in path or path.endswith('/groups'):
             try:
-                admin_id = self.current_student_id()   # the creator is the admin
-                if 'create-group' in path:
-                    # Only the author of a project call can turn it into a team
-                    proj = query_neon("SELECT author_id FROM project_posts WHERE id = $1;",
-                                      [path_id(path, 'project-posts')]).get("rows", [])
-                    if not proj:
-                        self.send_json({"error": "Project post not found"}, 404)
-                        return
-                    if proj[0]["author_id"] != admin_id:
-                        raise AuthError("only the project author can create its team", 403)
-                name = text_field(body.get('groupName') or body.get('name', 'Team'), "name", 150, required=True)
-                desc = text_field(body.get('description', 'Collaboration team'), "description", 1000)
+                admin_id = self.current_student_id()
                 raw_members = body.get('memberIds', [])
                 if not isinstance(raw_members, list):
                     raise BadRequest("'memberIds' must be a list")
@@ -853,26 +979,40 @@ class handler(BaseHTTPRequestHandler):
                     m_id = to_int(m, "memberIds")
                     if m_id != admin_id and m_id not in member_ids:
                         member_ids.append(m_id)
-                is_project = 'create-group' in path
-                sql = "INSERT INTO groups (name, description, admin_id, is_project_group) VALUES ($1, $2, $3, $4::boolean) RETURNING id, name, description, admin_id as \"leaderId\", is_project_group as \"isProjectGroup\";"
-                res = query_neon(sql, [name, desc, admin_id, "true" if is_project else "false"])
-                g_id = res["rows"][0]["id"]
-                member_count = 1
-                # Add admin as member
-                try:
+                insert_group = "INSERT INTO groups (name, description, admin_id, is_project_group) VALUES ($1, $2, $3, $4::boolean) RETURNING id;"
+                created = False
+                if 'create-group' in path:
+                    proj_id = path_id(path, 'project-posts')
+                    proj = query_neon("SELECT author_id, project_title FROM project_posts WHERE id = $1;", [proj_id]).get("rows", [])
+                    if not proj:
+                        raise ApiError("Project post not found", 404)
+                    if proj[0]["author_id"] != admin_id:
+                        raise AuthError("only the project author can build its team", 403)
+                    link = query_neon("SELECT group_id FROM project_teams WHERE project_post_id = $1;", [proj_id]).get("rows", [])
+                    if link:
+                        g_id = link[0]["group_id"]
+                    else:
+                        name = text_field(body.get('groupName') or f"{proj[0]['project_title']} Team", "name", 150, required=True)
+                        desc = text_field(body.get('description', 'Project team'), "description", 1000)
+                        g_id = query_neon(insert_group, [name, desc, admin_id, "true"])["rows"][0]["id"]
+                        query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [g_id, admin_id])
+                        won = query_neon("INSERT INTO project_teams (project_post_id, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING group_id;",
+                                         [proj_id, g_id]).get("rows", [])
+                        if won:
+                            created = True
+                        else:   # a parallel click created the team first: use that one
+                            query_neon("DELETE FROM groups WHERE id = $1;", [g_id])
+                            g_id = query_neon("SELECT group_id FROM project_teams WHERE project_post_id = $1;", [proj_id])["rows"][0]["group_id"]
+                else:
+                    name = text_field(body.get('groupName') or body.get('name', 'Team'), "name", 150, required=True)
+                    desc = text_field(body.get('description', 'Collaboration team'), "description", 1000)
+                    g_id = query_neon(insert_group, [name, desc, admin_id, "false"])["rows"][0]["id"]
                     query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [g_id, admin_id])
-                except Exception:
-                    pass
-                # Add all selected members
-                for m_id in member_ids:
-                    try:
-                        query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [g_id, m_id])
-                        member_count += 1
-                    except Exception:
-                        pass
-                result = res["rows"][0]
-                result["memberCount"] = member_count
-                result["memberIds"] = [admin_id] + member_ids
+                    created = True
+                invited = invite_to_group(g_id, admin_id, member_ids)
+                result = group_summary(g_id)
+                result["created"] = created
+                result["invited"] = invited
                 self.send_json(result, 200)
             except Exception as e:
                 self.send_error_json(e)
