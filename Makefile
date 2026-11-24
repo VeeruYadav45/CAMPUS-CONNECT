@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++11 -Wall -I include
 # Code shared by every program
 CORE_SRCS = src/student.cpp src/post.cpp src/Group.cpp src/DataStore.cpp src/Graph.cpp \
             src/JaccardMatching.cpp src/ProjectPost.cpp src/ProjectGroup.cpp \
-            src/TopKRanker.cpp src/Message.cpp
+            src/TopKRanker.cpp src/Message.cpp src/trie1.cpp
 CORE_OBJS = $(CORE_SRCS:.cpp=.o)
 
 TARGET = campus_connect

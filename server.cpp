@@ -12,6 +12,7 @@
 #include "include/post.h"
 #include "include/student.h"
 #include "include/Message.h"
+#include "include/Trie.h"
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -28,6 +29,7 @@ using json = nlohmann::json;
 // Global backend state and thread safety lock
 static DataStore store;
 static Graph graph;
+static Trie postIndex;   // keyword index over feed posts and project posts (Trie)
 static int nextStudentId = 1;
 static int nextGroupId = 1;
 static std::mutex serverMutex;
@@ -69,6 +71,21 @@ struct ProjectPostMeta {
     int teamSizeNeeded;
 };
 static unordered_map<int, ProjectPostMeta> projectPostMetaMap;
+
+// Words a post is searchable by: its text, plus title and skills for project posts
+static void indexPost(const Post &p) {
+    postIndex.indexText(p.getContent(), p.getPostId());
+    auto it = projectPostMetaMap.find(p.getPostId());
+    if (it != projectPostMetaMap.end()) {
+        postIndex.indexText(it->second.projectTitle, p.getPostId());
+        for (const string &sk : it->second.requiredSkills) postIndex.indexText(sk, p.getPostId());
+    }
+}
+
+static void rebuildSearchIndex() {
+    postIndex.clear();
+    for (const Post &p : store.getAllPosts()) indexPost(p);
+}
 
 // Global registry for ProjectGroup specific fields
 struct ProjectGroupMeta {
@@ -211,6 +228,7 @@ static void loadDemoData() {
                          getCurrentTime());
     store.addPost(projPost);
     projectPostMetaMap[ppId] = { "AI Study Group Project", {"Python", "ML", "DSA"}, 3 };
+    rebuildSearchIndex();
 
     // Graph connections
     graph.addConnection(s1.getId(), s2.getId());
@@ -774,6 +792,41 @@ int main() {
     });
 
     // 14. GET /api/posts
+    // GET /api/search?q=words  -> keyword + prefix search with the Trie.
+    // Every word must match (AND); each word is a prefix ("py" finds "python").
+    // Suggestions autocomplete the last word.
+    svr.Get("/api/search", [](const httplib::Request &req, httplib::Response &res) {
+        std::lock_guard<std::mutex> lock(serverMutex);
+        vector<string> words = Trie::tokenize(req.has_param("q") ? req.get_param_value("q") : "");
+        json out;
+        out["suggestions"] = json::array();
+        out["posts"] = json::array();
+        out["projects"] = json::array();
+        if (words.empty() || words.size() > 10) return sendJsonOk(res, out);
+
+        vector<int> first = postIndex.searchByPrefix(words[0]);
+        unordered_set<int> ids(first.begin(), first.end());
+        for (size_t i = 1; i < words.size() && !ids.empty(); i++) {
+            vector<int> more = postIndex.searchByPrefix(words[i]);
+            unordered_set<int> keep(more.begin(), more.end());
+            for (auto it = ids.begin(); it != ids.end();) {
+                if (keep.count(*it)) ++it; else it = ids.erase(it);
+            }
+        }
+        vector<string> sugg = postIndex.autocomplete(words.back());
+        for (size_t i = 0; i < sugg.size() && i < 8; i++) out["suggestions"].push_back(sugg[i]);
+
+        vector<int> sorted(ids.begin(), ids.end());
+        sort(sorted.rbegin(), sorted.rend());   // newest first
+        for (int id : sorted) {
+            Post *p = store.findPostById(id);
+            if (!p) continue;
+            if (projectPostMetaMap.count(id)) out["projects"].push_back(postToJson(*p));
+            else out["posts"].push_back(postToJson(*p));
+        }
+        sendJsonOk(res, out);
+    });
+
     svr.Get("/api/posts", [](const httplib::Request &, httplib::Response &res) {
         std::lock_guard<std::mutex> lock(serverMutex);
         vector<Post> all = store.getAllPosts();
@@ -806,6 +859,7 @@ int main() {
             int pId = store.getNextPostId();
             Post p(pId, sId, s->getName(), content, getCurrentTime());
             store.addPost(p);
+            indexPost(p);
             sendJsonOk(res, postToJson(p));
         } catch (const exception &e) {
             sendJsonError(res, string("Invalid request: ") + e.what());
@@ -838,6 +892,7 @@ int main() {
             ProjectPost pp(pId, sId, s->getName(), title, reqSkills, teamSize, getCurrentTime());
             store.addPost(pp);
             projectPostMetaMap[pId] = { title, reqSkills, teamSize };
+            indexPost(pp);
 
             sendJsonOk(res, postToJson(pp));
         } catch (const exception &e) {

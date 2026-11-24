@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupNavigation();
   setupModals();
   setupEventListeners();
+  setupKeywordSearch();
   initMicrosoftAuth();
 
   try {
@@ -1148,6 +1149,69 @@ window.deleteProjectPost = async function (projectId) {
     document.getElementById('project-empty-state')?.classList.remove('hidden');
     await refreshAllData();
   } catch (e) { }
+};
+
+// --- Keyword search (Trie on the server: prefix match + autocomplete) ---
+let searchTimer = null;
+let searchSeq = 0;
+
+function setupKeywordSearch() {
+  const input = document.getElementById('input-keyword-search');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => runKeywordSearch(input.value), 200);   // debounce typing
+  });
+}
+
+async function runKeywordSearch(query) {
+  const sugBox = document.getElementById('search-suggestions');
+  const resBox = document.getElementById('search-results');
+  const q = query.trim();
+  const seq = ++searchSeq;
+  if (!q) { sugBox.innerHTML = ''; resBox.innerHTML = ''; return; }
+  let data;
+  try {
+    data = await API.get(`/api/search?q=${encodeURIComponent(q)}`);
+  } catch (e) { return; }
+  if (seq !== searchSeq) return;   // a newer search already started
+
+  const lastWord = (q.toLowerCase().match(/[a-z0-9+#]+$/) || [''])[0];
+  sugBox.innerHTML = data.suggestions
+    .filter(w => w !== lastWord)
+    .map(w => `<button class="tag-badge suggestion-chip" onclick='completeSearchWord(${JSON.stringify(escapeHtml(w))})'>${escapeHtml(w)}</button>`)
+    .join('');
+
+  const posts = data.posts.map(p => {
+    const id = p.authorId ?? p.studentId;
+    const st = State.students.find(s => s.id === id);
+    return `<div class="search-hit">
+        <div class="small text-muted">Post by <strong>${nameHtml(st ? st.name : (p.authorName || 'Student'), id)}</strong> &bull; ${escapeHtml(p.timestamp || '')}</div>
+        <div class="search-hit-body">${escapeHtml(p.content)}</div>
+      </div>`;
+  });
+  const projects = data.projects.map(p => `
+      <div class="search-hit clickable" onclick="openProjectFromSearch(${p.id})">
+        <div class="small text-muted">Project &bull; ${escapeHtml(p.authorName || '')}</div>
+        <div class="search-hit-body"><strong>${escapeHtml(p.projectTitle || 'Project')}</strong></div>
+        <div class="tags-list">${(p.requiredSkills || []).map(sk => `<span class="tag-badge skill">${escapeHtml(sk)}</span>`).join('')}</div>
+      </div>`);
+  const total = posts.length + projects.length;
+  resBox.innerHTML = total
+    ? `<div class="small text-muted">${total} result${total === 1 ? '' : 's'}</div>` + projects.join('') + posts.join('')
+    : `<div class="small text-muted">No posts or projects match "${escapeHtml(q)}".</div>`;
+}
+
+window.completeSearchWord = function (word) {
+  const input = document.getElementById('input-keyword-search');
+  input.value = input.value.replace(/[A-Za-z0-9+#]*$/, '') + word + ' ';
+  input.focus();
+  runKeywordSearch(input.value);
+};
+
+window.openProjectFromSearch = function (projectId) {
+  document.getElementById('tab-btn-projects')?.click();
+  selectProjectPost(projectId);
 };
 
 // --- Modals & Event Listeners ---

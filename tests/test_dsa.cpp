@@ -9,6 +9,7 @@
 #include "ProjectGroup.h"
 #include "ProjectPost.h"
 #include "TopKRanker.h"
+#include "Trie.h"
 
 #include <algorithm>
 #include <cmath>
@@ -128,6 +129,67 @@ static void testSuggestFriends() {
                 size_t a = got[i - 1].mutualIds.size(), b = got[i].mutualIds.size();
                 CHECK(a > b || (a == b && got[i - 1].studentId < got[i].studentId));
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Trie (keyword search)
+static void testTrie() {
+    Trie t;
+    CHECK(t.autocomplete("a").empty());          // empty trie
+    CHECK(!t.search("python"));
+
+    t.indexText("Learning Python and PyTorch for ML", 1);
+    t.indexText("python tutor needed, C++ also fine", 2);
+    t.indexText("Looking for a C# dev", 3);
+    t.insert("Python", 1);                       // duplicate word+id -> stored once
+
+    CHECK(t.search("PYTHON"));                   // case-insensitive
+    CHECK(t.search("c++") && t.search("c#"));    // '+' and '#' kept in words
+    CHECK(!t.search("pyth"));                    // prefix is not a whole word
+    vector<int> py = t.getPostIds("python");
+    sort(py.begin(), py.end());
+    CHECK(py == vector<int>({1, 2}));            // no duplicate id 1
+
+    vector<string> ac = t.autocomplete("Py");
+    CHECK(ac == vector<string>({"python", "pytorch"}));   // alphabetical
+    CHECK(t.autocomplete("zz").empty());
+
+    vector<int> pre = t.searchByPrefix("py");
+    sort(pre.begin(), pre.end());
+    CHECK(pre == vector<int>({1, 2}));
+    vector<int> c = t.searchByPrefix("c");
+    sort(c.begin(), c.end());
+    CHECK(c == vector<int>({2, 3}));
+
+    CHECK(Trie::tokenize("Hi, C++/ML-dev!") == vector<string>({"hi", "c++", "ml", "dev"}));
+    t.clear();
+    CHECK(!t.search("python") && t.autocomplete("p").empty());
+
+    // Random texts: prefix search == brute force over the same words
+    mt19937 rng(11);
+    const vector<string> vocab = {"ai", "aim", "air", "algo", "app", "apple", "c", "c++", "cpp", "data", "dsa", "dev", "devops"};
+    for (int round = 0; round < 50; round++) {
+        Trie r;
+        vector<vector<string>> docs(20);
+        for (int id = 0; id < 20; id++) {
+            string text;
+            for (int k = 0; k < 4; k++) {
+                docs[id].push_back(vocab[rng() % vocab.size()]);
+                text += docs[id].back() + " ";
+            }
+            r.indexText(text, id);
+        }
+        for (const string &prefix : {"a", "ap", "c", "c+", "d", "dev", "x"}) {
+            vector<int> got = r.searchByPrefix(prefix);
+            sort(got.begin(), got.end());
+            vector<int> want;
+            for (int id = 0; id < 20; id++) {
+                for (const string &w : docs[id]) {
+                    if (w.compare(0, string(prefix).size(), prefix) == 0) { want.push_back(id); break; }
+                }
+            }
+            CHECK(got == want);
         }
     }
 }
@@ -269,6 +331,7 @@ int main() {
 
     testGraph();
     testSuggestFriends();
+    testTrie();
     testDataStoreIndex();
     testNoSlicing();
     testGroup();

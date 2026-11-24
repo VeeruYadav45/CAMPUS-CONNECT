@@ -31,7 +31,7 @@
     rel="stylesheet">
 
 
-  <link rel="stylesheet" href="style.css?v=3.1">
+  <link rel="stylesheet" href="style.css?v=3.2">
   <link rel="stylesheet" href="cat-companion.css">
 
 
@@ -1017,6 +1017,13 @@
 
         <div class="feed-layout">
 
+          <!-- Keyword search (Trie): posts and project posts -->
+          <div class="glass-card search-card">
+            <input type="search" id="input-keyword-search" class="search-input-trie" autocomplete="off"
+                   placeholder="Search posts and projects (e.g. pyth, c++ robot)...">
+            <div id="search-suggestions" class="search-suggestions"></div>
+            <div id="search-results" class="search-results"></div>
+          </div>
 
           <!-- Post Creator Box -->
 
@@ -1666,7 +1673,7 @@
 
 
 
-  <script src="app.js?v=3.1"></script>
+  <script src="app.js?v=3.2"></script>
   <script src="cat-companion.js"></script>
 
 
