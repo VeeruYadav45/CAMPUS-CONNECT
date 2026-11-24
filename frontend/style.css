@@ -1614,3 +1614,29 @@ textarea:focus {
   font-weight: 600;
   letter-spacing: 0.3px;
 }
+/* Edit / delete buttons on your own posts */
+.post-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.post-action-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.post-action-btn:hover {
+  color: var(--text-main);
+  border-color: var(--text-muted);
+}
+
+.post-action-btn.danger:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
