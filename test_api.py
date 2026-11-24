@@ -110,4 +110,14 @@ counts = [x["mutualCount"] for x in sug_res["data"]]
 assert counts == sorted(counts, reverse=True)  # most mutual friends first
 print("11. GET /api/students/:id/suggestions (people you may know) verified")
 
+# 12. Keyword search (Trie): prefix match, AND across words, autocomplete
+srch = get("/api/search?q=pyth")
+assert srch["ok"] and "python" in srch["data"]["suggestions"]
+assert any(p["id"] == ppId for p in srch["data"]["projects"])   # "Quantum Computing Lab" needs Python
+both = get("/api/search?q=quant%20dsa")["data"]
+assert [p["id"] for p in both["projects"]] == [ppId]
+assert get("/api/search?q=zzzz")["data"] == {"suggestions": [], "posts": [], "projects": []}
+assert any("Broadcast" in p["content"] for p in get("/api/search?q=broad")["data"]["posts"])
+print("12. GET /api/search (Trie keyword + prefix search) verified")
+
 print("\nALL BACKEND API ENDPOINTS FUNCTIONING 100% PERFECTLY!")

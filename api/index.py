@@ -232,6 +232,63 @@ def send_connection_request(me, other):
         rows = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [me, other]).get("rows", [])
     return {"status": "pending", "requestId": rows[0]["id"] if rows else None, "studentId": other}
 
+class Trie:
+    """Keyword index, same design as the C++ Trie (include/Trie.h, src/trie1.cpp):
+    one node per character; each word's end node keeps the IDs of the items
+    containing it. insert O(L); prefix lookup O(P + subtree)."""
+    WORD = __import__("re").compile(r"[a-z0-9+#]+")
+
+    def __init__(self):
+        self.root = {"kids": {}, "end": False, "ids": set()}
+
+    @classmethod
+    def tokenize(cls, text):
+        return cls.WORD.findall(str(text or "").lower())
+
+    def insert(self, word, item):
+        node = self.root
+        for ch in word:
+            node = node["kids"].setdefault(ch, {"kids": {}, "end": False, "ids": set()})
+        node["end"] = True
+        node["ids"].add(item)
+
+    def index_text(self, text, item):
+        for w in self.tokenize(text):
+            self.insert(w, item)
+
+    def _walk(self, prefix):
+        node = self.root
+        for ch in prefix:
+            node = node["kids"].get(ch)
+            if node is None:
+                return None
+        return node
+
+    def search_prefix(self, prefix):
+        """IDs of items with any word starting with `prefix` (duplicates removed)."""
+        node, found, stack = self._walk(prefix), set(), []
+        if node is not None:
+            stack.append(node)
+        while stack:
+            n = stack.pop()
+            found |= n["ids"]
+            stack.extend(n["kids"].values())
+        return found
+
+    def autocomplete(self, prefix, limit=8):
+        """Whole words starting with `prefix`, alphabetical."""
+        start, words = self._walk(prefix), []
+        def dfs(node, word):
+            if len(words) >= limit:
+                return
+            if node["end"]:
+                words.append(word)
+            for ch in sorted(node["kids"]):
+                dfs(node["kids"][ch], word + ch)
+        if start is not None:
+            dfs(start, prefix)
+        return words
+
 def is_founder(student_id):
     """Founders moderate the site: they may delete any post, project or group."""
     rows = query_neon("SELECT 1 FROM site_roles WHERE student_id = $1 AND role = 'founder';", [student_id])
@@ -387,6 +444,33 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
+
+        # 0. GET /api/search?q=words — keyword + prefix search over feed posts and
+        #    project posts with a Trie. Every word must match (AND), each word is a
+        #    prefix ("py" finds "python"); suggestions autocomplete the last word.
+        if path.endswith('/api/search'):
+            try:
+                q = text_field(parse_qs(parsed.query).get('q', [''])[0], "q", 200)
+                words = Trie.tokenize(q)[:10]
+                out = {"suggestions": [], "posts": [], "projects": []}
+                if words:
+                    posts = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM posts;").get("rows", [])
+                    projects = query_neon("SELECT id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM project_posts;").get("rows", [])
+                    trie = Trie()
+                    for p in posts:
+                        trie.index_text(p["content"], ("post", p["id"]))
+                    for p in projects:
+                        trie.index_text(f"{p['projectTitle']} {p['content']} {' '.join(p['requiredSkills'] or [])}", ("project", p["id"]))
+                    hits = trie.search_prefix(words[0])
+                    for w in words[1:]:
+                        hits &= trie.search_prefix(w)
+                    out["suggestions"] = trie.autocomplete(words[-1])
+                    out["posts"] = sorted((p for p in posts if ("post", p["id"]) in hits), key=lambda p: -p["id"])[:20]
+                    out["projects"] = sorted((p for p in projects if ("project", p["id"]) in hits), key=lambda p: -p["id"])[:20]
+                self.send_json(out)
+            except Exception as e:
+                self.send_error_json(e)
+            return
 
         # 0a. GET /api/project-posts/:id/team — the project's team (one per project).
         #     Everyone sees members; only the author also sees pending invitations.

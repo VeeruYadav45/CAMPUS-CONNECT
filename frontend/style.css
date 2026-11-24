@@ -1688,3 +1688,57 @@ textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .founder-name { animation: none; }
 }
+
+/* Keyword search (Trie) */
+.search-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.search-input-trie {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-main);
+  font-size: 0.95rem;
+}
+
+.search-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.suggestion-chip {
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.search-hit {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.search-hit.clickable {
+  cursor: pointer;
+}
+
+.search-hit.clickable:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.search-hit-body {
+  margin: 0.2rem 0 0.3rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

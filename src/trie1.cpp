@@ -1,4 +1,5 @@
-#include "../include/Trie.h"
+#include "Trie.h"
+#include <cctype>
 #include <iostream>
 #include <unordered_set>
 using namespace std;
@@ -6,8 +7,8 @@ Trie::Trie() { root = new TrieNode(); }
 
 string Trie::toLower(const string &str) const {
   string result = str;
-  for (int i = 0; i < result.size(); i++) {
-    result[i] = tolower(result[i]);
+  for (size_t i = 0; i < result.size(); i++) {
+    result[i] = (char)tolower((unsigned char)result[i]);
   }
   return result;
 }
@@ -15,7 +16,7 @@ string Trie::toLower(const string &str) const {
  void Trie::insert(const string &word, int postId) {
   string lowerWord = toLower(word); 
   TrieNode *current = root;         
-  for (int i = 0; i < lowerWord.size(); i++) {
+  for (size_t i = 0; i < lowerWord.size(); i++) {
     char ch = lowerWord[i];
 
     if (current->children.find(ch) == current->children.end()) {
@@ -29,7 +30,7 @@ string Trie::toLower(const string &str) const {
 
   current->isEndOfWord = true;
   bool alreadyExists = false;
-  for (int i = 0; i < current->postIds.size(); i++) {
+  for (size_t i = 0; i < current->postIds.size(); i++) {
     if (current->postIds[i] == postId) {
       alreadyExists = true;
       break;
@@ -43,7 +44,7 @@ bool Trie::search(const string &word) const {
   string lowerWord = toLower(word);
   TrieNode *current = root;
 
-  for (int i = 0; i < lowerWord.size(); i++) {
+  for (size_t i = 0; i < lowerWord.size(); i++) {
     char ch = lowerWord[i];
 
     // If character not found, word doesn't exist
@@ -60,7 +61,7 @@ vector<int> Trie::getPostIds(const string &word) const {
   string lowerWord = toLower(word);
   TrieNode *current = root;
 
-  for (int i = 0; i < lowerWord.size(); i++) {
+  for (size_t i = 0; i < lowerWord.size(); i++) {
     char ch = lowerWord[i];
     if (current->children.find(ch) == current->children.end()) {
       return {}; // empty vector = word not found
@@ -103,7 +104,7 @@ vector<string> Trie::autocomplete(const string &prefix) const {
   TrieNode *current = root;
 
   // Navigate to the end of the prefix
-  for (int i = 0; i < lowerPrefix.size(); i++) {
+  for (size_t i = 0; i < lowerPrefix.size(); i++) {
     char ch = lowerPrefix[i];
     if (current->children.find(ch) == current->children.end()) {
       return {}; // prefix not found → no suggestions
@@ -122,7 +123,7 @@ vector<int> Trie::searchByPrefix(const string &prefix) const {
   TrieNode *current = root;
 
   // Navigate to end of prefix
-  for (int i = 0; i < lowerPrefix.size(); i++) {
+  for (size_t i = 0; i < lowerPrefix.size(); i++) {
     char ch = lowerPrefix[i];
     if (current->children.find(ch) == current->children.end()) {
       return {};
@@ -149,14 +150,14 @@ void Trie::displayAllWords() const {
   }
 
   cout << "\n===== TRIE KEYWORDS =====" << endl;
-  for (int i = 0; i < words.size(); i++) {
+  for (size_t i = 0; i < words.size(); i++) {
     cout << "  " << i + 1 << ". " << words[i];
 
     // Also show linked post IDs
     vector<int> ids = getPostIds(words[i]);
     if (!ids.empty()) {
       cout << "  → Posts: [";
-      for (int j = 0; j < ids.size(); j++) {
+      for (size_t j = 0; j < ids.size(); j++) {
         cout << ids[j];
         if (j != ids.size() - 1)
           cout << ", ";
