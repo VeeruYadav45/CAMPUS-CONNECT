@@ -533,6 +533,59 @@ class handler(BaseHTTPRequestHandler):
             self.send_json({"error": "invalid JSON body"}, 400)
             return
 
+        # 0. Edit / delete posts
+        #    POST /api/posts/:id/edit {content}            — feed post, author only
+        #    POST /api/posts/:id/delete                    — feed post, author only
+        #    POST /api/groups/:gid/posts/:pid/edit {content} — group post, author only
+        #    POST /api/groups/:gid/posts/:pid/delete       — group post, author or group admin
+        if path.endswith('/edit') or path.endswith('/delete'):
+            parts = path.split('/')
+            action = parts[-1]
+            try:
+                if len(parts) >= 3 and parts[-3] == 'posts' and '/groups/' in path:
+                    g_id = path_id(path, 'groups')
+                    p_id = to_int(parts[-2], "post id")
+                    me = self.current_student_id()
+                    rows = query_neon("SELECT gp.student_id, g.admin_id FROM group_posts gp JOIN groups g ON g.id = gp.group_id WHERE gp.id = $1 AND gp.group_id = $2;", [p_id, g_id]).get("rows", [])
+                    if not rows:
+                        self.send_json({"error": "Post not found"}, 404)
+                        return
+                    is_author = rows[0]["student_id"] == me
+                    if action == 'edit':
+                        if not is_author:
+                            raise AuthError("you can only edit your own posts", 403)
+                        content = text_field(body.get('content'), "content", 2000, required=True)
+                        res = query_neon("UPDATE group_posts SET content = $1 WHERE id = $2 RETURNING id, student_id as \"studentId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;", [content, p_id])
+                        self.send_json(res["rows"][0])
+                    else:
+                        if not (is_author or rows[0]["admin_id"] == me):
+                            raise AuthError("only the author or the group admin can delete this post", 403)
+                        query_neon("DELETE FROM group_posts WHERE id = $1;", [p_id])
+                        self.send_json({"deleted": p_id})
+                    return
+                if len(parts) >= 3 and parts[-3] == 'posts' and '/project-posts/' not in path:
+                    p_id = to_int(parts[-2], "post id")
+                    me = self.current_student_id()
+                    rows = query_neon("SELECT author_id FROM posts WHERE id = $1;", [p_id]).get("rows", [])
+                    if not rows:
+                        self.send_json({"error": "Post not found"}, 404)
+                        return
+                    if rows[0]["author_id"] != me:
+                        raise AuthError(f"you can only {action} your own posts", 403)
+                    if action == 'edit':
+                        content = text_field(body.get('content'), "content", 2000, required=True)
+                        res = query_neon("UPDATE posts SET content = $1 WHERE id = $2 RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;", [content, p_id])
+                        self.send_json(res["rows"][0])
+                    else:
+                        query_neon("DELETE FROM posts WHERE id = $1;", [p_id])
+                        self.send_json({"deleted": p_id})
+                    return
+            except Exception as e:
+                self.send_error_json(e)
+                return
+            self.send_json({"error": "Endpoint not found"}, 404)
+            return
+
         # 1. POST /api/students  — sign in: returns your profile, creating it on first sign-in.
         #    Name and email come from the verified Microsoft token, never from the request body.
         if path.endswith('/api/students') or path.endswith('/students'):

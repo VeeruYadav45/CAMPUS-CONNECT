@@ -781,14 +781,23 @@ async function refreshGroupPosts(groupId) {
       return;
     }
 
+    State.groupPosts = posts;
+    const me = signedInStudentId();
+    const group = State.groups.find(g => g.id === groupId);
+    const iAmAdmin = !!(me && group && group.leaderId === me);
     postsList.innerHTML = posts.map(p => {
       const author = State.students.find(s => s.id === p.studentId);
+      const mine = me && p.studentId === me;
       return `
         <div class="feed-post-card" style="padding:0.85rem;">
           <div class="post-header">
             <div class="user-avatar-sm" style="width:26px; height:26px; font-size:0.75rem;">${escapeHtml(author ? author.name.charAt(0) : 'U')}</div>
             <span class="post-author">${escapeHtml(author ? author.name : 'Student #' + p.studentId)}</span>
             <span class="post-timestamp">${escapeHtml(p.timestamp || '')}</span>
+            ${(mine || iAmAdmin) ? `<span class="post-actions">
+              ${mine ? `<button class="post-action-btn" onclick="editGroupPost(${groupId}, ${p.id})">Edit</button>` : ''}
+              <button class="post-action-btn danger" onclick="deleteGroupPost(${groupId}, ${p.id})">Delete</button>
+            </span>` : ''}
           </div>
           <div class="post-body" style="font-size:0.88rem;">${escapeHtml(p.content)}</div>
         </div>
@@ -807,6 +816,7 @@ function renderFeedTimeline() {
     return;
   }
 
+  const me = signedInStudentId();
   timeline.innerHTML = State.feedPosts.map(p => {
     const authorId = p.authorId ?? p.studentId;   // Python API: authorId, C++: both
     const author = State.students.find(s => s.id === authorId);
@@ -819,12 +829,61 @@ function renderFeedTimeline() {
             <div class="post-author">${escapeHtml(authorName)}</div>
             <div class="post-timestamp">${escapeHtml(p.timestamp || '')}</div>
           </div>
+          ${me && authorId === me ? `<span class="post-actions">
+            <button class="post-action-btn" onclick="editFeedPost(${p.id})">Edit</button>
+            <button class="post-action-btn danger" onclick="deleteFeedPost(${p.id})">Delete</button>
+          </span>` : ''}
         </div>
         <div class="post-body">${escapeHtml(p.content)}</div>
       </div>
     `;
   }).join('');
 }
+
+// --- Edit / delete your own posts (group admins may also delete group posts) ---
+window.editFeedPost = async function (postId) {
+  const post = State.feedPosts.find(p => p.id === postId);
+  if (!post) return;
+  const text = prompt("Edit your post:", post.content);
+  if (text === null || !text.trim() || text.trim() === post.content) return;
+  try {
+    await API.post(`/api/posts/${postId}/edit`, { content: text.trim() });
+    showToast("Post updated.", "success");
+    State.feedPosts = await API.get('/api/posts') || [];
+    renderFeedTimeline();
+  } catch (e) { }
+};
+
+window.deleteFeedPost = async function (postId) {
+  if (!confirm("Delete this post? This cannot be undone.")) return;
+  try {
+    await API.post(`/api/posts/${postId}/delete`, {});
+    showToast("Post deleted.", "success");
+    State.feedPosts = await API.get('/api/posts') || [];
+    renderFeedTimeline();
+  } catch (e) { }
+};
+
+window.editGroupPost = async function (groupId, postId) {
+  const post = (State.groupPosts || []).find(p => p.id === postId);
+  if (!post) return;
+  const text = prompt("Edit your post:", post.content);
+  if (text === null || !text.trim() || text.trim() === post.content) return;
+  try {
+    await API.post(`/api/groups/${groupId}/posts/${postId}/edit`, { content: text.trim() });
+    showToast("Post updated.", "success");
+    await refreshGroupPosts(groupId);
+  } catch (e) { }
+};
+
+window.deleteGroupPost = async function (groupId, postId) {
+  if (!confirm("Delete this post? This cannot be undone.")) return;
+  try {
+    await API.post(`/api/groups/${groupId}/posts/${postId}/delete`, {});
+    showToast("Post deleted.", "success");
+    await refreshGroupPosts(groupId);
+  } catch (e) { }
+};
 
 // --- Modals & Event Listeners ---
 function setupModals() {
@@ -1037,13 +1096,15 @@ function setupEventListeners() {
   });
 
   // Feed: Submit post
-  document.getElementById('btn-submit-feed-post')?.addEventListener('click', async () => {
+  document.getElementById('btn-submit-feed-post')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
     const input = document.getElementById('feed-post-content');
     const content = input?.value.trim();
-    if (!content) return;
-    
+    if (!content || btn.disabled) return;   // ignore extra clicks while sending
+
     const authorId = State.activeStudentId || (State.students[0] ? State.students[0].id : 12);
 
+    btn.disabled = true;
     try {
       await API.post('/api/posts', {
         authorId: authorId,
@@ -1054,7 +1115,10 @@ function setupEventListeners() {
       const posts = await API.get('/api/posts');
       State.feedPosts = posts || [];
       renderFeedTimeline();
-    } catch (e) { }
+    } catch (e) {
+    } finally {
+      btn.disabled = false;
+    }
   });
 
 
