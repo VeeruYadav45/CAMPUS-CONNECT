@@ -31,7 +31,7 @@
     rel="stylesheet">
 
 
-  <link rel="stylesheet" href="style.css?v=2.7">
+  <link rel="stylesheet" href="style.css?v=2.9">
   <link rel="stylesheet" href="cat-companion.css">
 
 
@@ -231,6 +231,7 @@
 
 
           <span>Social Network Graph</span>
+          <span class="nav-badge hidden" id="requests-badge" title="Connection requests"></span>
 
 
         </button>
@@ -699,6 +700,12 @@
 
 
 
+
+            <div class="glass-card mt-4 hidden" id="requests-card">
+              <h3 class="panel-section-title">Connection Requests</h3>
+              <p class="text-muted small mt-2">A connection is made only when the other student accepts.</p>
+              <div id="requests-list" class="friends-mini-list mt-2"></div>
+            </div>
 
             <div class="glass-card mt-4">
 
@@ -1652,7 +1659,7 @@
 
 
 
-  <script src="app.js?v=2.8"></script>
+  <script src="app.js?v=2.9"></script>
   <script src="cat-companion.js"></script>
 
 

@@ -189,6 +189,49 @@ def verify_ms_id_token(token):
         raise AuthError("please sign in with your Graphic Era account", 403)
     return email, str(claims.get("name") or email.split("@")[0])
 
+class ApiError(Exception):
+    """Any other HTTP error with a message (404, 409, 429...)."""
+    def __init__(self, message, status):
+        super().__init__(message)
+        self.status = status
+
+REQUEST_COOLDOWN_DAYS = 7   # after a decline, the same sender must wait this long
+
+def are_connected(a, b):
+    rows = query_neon("SELECT 1 FROM connections WHERE student_a = $1 AND student_b = $2;", [min(a, b), max(a, b)])
+    return bool(rows.get("rows"))
+
+def connect_pair(a, b):
+    query_neon("INSERT INTO connections (student_a, student_b) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [min(a, b), max(a, b)])
+
+def send_connection_request(me, other):
+    """Ask `other` to connect. Returns {"status": "pending"|"connected", ...}.
+    If `other` had already asked me, this accepts their request instead."""
+    if other == me:
+        raise BadRequest("you cannot connect with yourself")
+    if not query_neon("SELECT 1 FROM students WHERE id = $1;", [other]).get("rows"):
+        raise ApiError("Student not found", 404)
+    if are_connected(me, other):
+        return {"status": "connected", "studentId": other}
+    reverse = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [other, me]).get("rows", [])
+    if reverse:
+        connect_pair(me, other)
+        query_neon("DELETE FROM connection_requests WHERE id = $1;", [reverse[0]["id"]])
+        return {"status": "connected", "studentId": other}
+    pending = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [me, other]).get("rows", [])
+    if pending:
+        return {"status": "pending", "requestId": pending[0]["id"], "studentId": other}
+    recent_decline = query_neon(
+        f"SELECT 1 FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'declined' "
+        f"AND responded_at > now() - interval '{REQUEST_COOLDOWN_DAYS} days';", [me, other]).get("rows")
+    if recent_decline:
+        raise ApiError("you can't send this student another request yet", 429)
+    query_neon("DELETE FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status <> 'pending';", [me, other])
+    rows = query_neon("INSERT INTO connection_requests (from_id, to_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id;", [me, other]).get("rows", [])
+    if not rows:
+        rows = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [me, other]).get("rows", [])
+    return {"status": "pending", "requestId": rows[0]["id"] if rows else None, "studentId": other}
+
 def path_id(path, segment):
     """Return the integer that follows `segment` in the URL path, e.g. /groups/7/join -> 7."""
     parts = path.split('/')
@@ -223,6 +266,18 @@ SCHEMA_STATEMENTS = [
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""",
+    # Connection requests: a connection exists only after the other student accepts
+    """CREATE TABLE IF NOT EXISTS connection_requests (
+        id SERIAL PRIMARY KEY,
+        from_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        to_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        status VARCHAR(10) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP,
+        CHECK (from_id <> to_id)
+    )""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS connection_requests_one_pending
+        ON connection_requests (from_id, to_id) WHERE status = 'pending'""",
 ]
 for _stmt in SCHEMA_STATEMENTS:
     try:
@@ -244,7 +299,7 @@ class handler(BaseHTTPRequestHandler):
         """400 for invalid user input, 401/403 for sign-in problems, 500 for everything else."""
         if isinstance(e, BadRequest):
             self.send_json({"error": str(e)}, 400)
-        elif isinstance(e, AuthError):
+        elif isinstance(e, (AuthError, ApiError)):
             self.send_json({"error": str(e)}, e.status)
         else:
             self.send_json({"error": str(e)}, 500)
@@ -276,6 +331,23 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
+
+        # 0. GET /api/connection-requests  — your incoming and outgoing pending requests
+        if path.endswith('/api/connection-requests'):
+            try:
+                me = self.current_student_id()
+                def listing(sql):
+                    return [{"id": r["id"], "createdAt": r["created_at"],
+                             "student": {"id": r["sid"], "name": r["name"], "department": r["department"], "year": r["year"]}}
+                            for r in query_neon(sql, [me]).get("rows", [])]
+                cols = "r.id, to_char(r.created_at, 'YYYY-MM-DD HH24:MI:SS') as created_at, s.id as sid, s.name, s.department, s.year"
+                self.send_json({
+                    "incoming": listing(f"SELECT {cols} FROM connection_requests r JOIN students s ON s.id = r.from_id WHERE r.to_id = $1 AND r.status = 'pending' ORDER BY r.id DESC;"),
+                    "outgoing": listing(f"SELECT {cols} FROM connection_requests r JOIN students s ON s.id = r.to_id WHERE r.from_id = $1 AND r.status = 'pending' ORDER BY r.id DESC;"),
+                })
+            except Exception as e:
+                self.send_error_json(e)
+            return
 
         # 1. GET /api/students  — public directory (no emails: privacy-first)
         if path.endswith('/api/students') or path.endswith('/students'):
@@ -619,6 +691,49 @@ class handler(BaseHTTPRequestHandler):
             self.send_json({"error": "Endpoint not found"}, 404)
             return
 
+        # 0b. Connection requests
+        #     POST /api/connection-requests {toId}            — send (or accept theirs if they asked first)
+        #     POST /api/connection-requests/:id/accept|decline — the receiver
+        #     POST /api/connection-requests/:id/cancel        — the sender
+        #     POST /api/connections/remove {studentId}        — disconnect
+        if '/api/connection-requests' in path or path.endswith('/api/connections/remove'):
+            try:
+                me = self.current_student_id()
+                if path.endswith('/api/connection-requests'):
+                    self.send_json(send_connection_request(me, to_int(body.get('toId'), "toId")))
+                    return
+                if path.endswith('/api/connections/remove'):
+                    other = to_int(body.get('studentId'), "studentId")
+                    query_neon("DELETE FROM connections WHERE student_a = $1 AND student_b = $2;", [min(me, other), max(me, other)])
+                    self.send_json({"removed": other})
+                    return
+                parts = path.split('/')
+                action = parts[-1]
+                req_id = to_int(parts[-2], "request id")
+                rows = query_neon("SELECT from_id, to_id FROM connection_requests WHERE id = $1 AND status = 'pending';", [req_id]).get("rows", [])
+                if not rows:
+                    raise ApiError("Request not found (it may have been answered already)", 404)
+                from_id, to_id = rows[0]["from_id"], rows[0]["to_id"]
+                if action in ('accept', 'decline') and to_id != me:
+                    raise AuthError("only the person who received this request can answer it", 403)
+                if action == 'cancel' and from_id != me:
+                    raise AuthError("only the sender can cancel this request", 403)
+                if action == 'accept':
+                    connect_pair(from_id, to_id)
+                    query_neon("DELETE FROM connection_requests WHERE id = $1;", [req_id])
+                    self.send_json({"status": "connected", "studentId": from_id})
+                elif action == 'decline':
+                    query_neon("UPDATE connection_requests SET status = 'declined', responded_at = now() WHERE id = $1;", [req_id])
+                    self.send_json({"status": "declined"})
+                elif action == 'cancel':
+                    query_neon("DELETE FROM connection_requests WHERE id = $1;", [req_id])
+                    self.send_json({"status": "cancelled"})
+                else:
+                    self.send_json({"error": "Endpoint not found"}, 404)
+            except Exception as e:
+                self.send_error_json(e)
+            return
+
         # 1. POST /api/students  — sign in: returns your profile, creating it on first sign-in.
         #    Name and email come from the verified Microsoft token, never from the request body.
         if path.endswith('/api/students') or path.endswith('/students'):
@@ -673,14 +788,9 @@ class handler(BaseHTTPRequestHandler):
                     if me not in (a, b):
                         raise AuthError("you can only add your own connections", 403)
                     other = b if a == me else a
-                    if other == me:
-                        raise BadRequest("you cannot connect with yourself")
-                    if not query_neon("SELECT 1 FROM students WHERE id = $1;", [other]).get("rows"):
-                        self.send_json({"error": "Student not found"}, 404)
-                        return
-                    s1, s2 = min(me, other), max(me, other)
-                    query_neon("INSERT INTO connections (student_a, student_b) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [s1, s2])
-                    self.send_json({"studentA": s1, "studentB": s2}, 200)
+                    # No more instant connections: this sends a request the other
+                    # student must accept (or accepts theirs if they asked first).
+                    self.send_json(send_connection_request(me, other))
                 except Exception as e:
                     self.send_error_json(e)
             else:
@@ -773,6 +883,11 @@ class handler(BaseHTTPRequestHandler):
             try:
                 g_id = path_id(path, 'groups')
                 student_id = self.current_student_id()
+                grp = query_neon("SELECT is_project_group FROM groups WHERE id = $1;", [g_id]).get("rows", [])
+                if not grp:
+                    raise ApiError("Group not found", 404)
+                if grp[0]["is_project_group"]:
+                    raise AuthError("project teams are formed by the project author", 403)
                 query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [g_id, student_id])
                 self.send_json({"groupId": g_id, "studentId": student_id})
             except Exception as e:
@@ -818,6 +933,8 @@ class handler(BaseHTTPRequestHandler):
                 r_id = to_int(body.get('receiverId'), "receiverId")
                 if r_id == s_id:
                     raise BadRequest("you cannot message yourself")
+                if not are_connected(s_id, r_id):
+                    raise AuthError("connect with this student before messaging them", 403)
                 content = text_field(body.get('content'), "content", 2000, required=True)
                 sql = "INSERT INTO messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING id, sender_id as \"senderId\", receiver_id as \"receiverId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
                 res = query_neon(sql, [s_id, r_id, content])

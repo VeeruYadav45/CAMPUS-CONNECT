@@ -14,7 +14,8 @@ const State = {
   selectedProjectId: null,
   d3Simulation: null,
   selectedChatPartnerId: null,
-  chatPollTimer: null
+  chatPollTimer: null,
+  requests: { incoming: [], outgoing: [] }
 };
 
 // --- API Helpers ---
@@ -206,6 +207,7 @@ async function refreshAllData() {
     State.feedPosts = feedPosts || [];
     State.projectPosts = projectPosts || [];
 
+    await loadConnectionRequests();
     updateCounters();
     populateSelectDropdowns();
     renderStudentsGrid();
@@ -333,11 +335,7 @@ async function renderStudentsGrid() {
             ${simScore && !isActive ? `<span class="similarity-score-badge" title="Jaccard Skill/Interest Similarity">${simScore}</span>` : ''}
           </div>
           <div>
-            ${!isActive ? `
-              <button class="btn btn-secondary btn-sm" onclick="connectWithStudent(${s.id})">
-                + Connect
-              </button>
-            ` : `<span class="text-muted small">Current active user</span>`}
+            ${!isActive ? connectButtonHtml(s.id) : `<span class="text-muted small">Current active user</span>`}
           </div>
         </div>
       </div>
@@ -345,19 +343,122 @@ async function renderStudentsGrid() {
   }).join('');
 }
 
+// --- Connections need the other student's consent (request -> accept) ---
+function isConnected(a, b) {
+  return State.connections.some(c => (c.a === a && c.b === b) || (c.a === b && c.b === a));
+}
+
+// 'connected' | 'outgoing' | 'incoming' | 'none'  (only meaningful when signed in)
+function connectionStatus(otherId) {
+  const me = signedInStudentId();
+  if (!me) return 'none';
+  if (isConnected(me, otherId)) return 'connected';
+  if (State.requests.outgoing.some(r => r.student.id === otherId)) return 'outgoing';
+  if (State.requests.incoming.some(r => r.student.id === otherId)) return 'incoming';
+  return 'none';
+}
+
+function connectButtonHtml(otherId) {
+  switch (connectionStatus(otherId)) {
+    case 'connected':
+      return `<span class="badge-pill">✓ Connected</span>`;
+    case 'outgoing': {
+      const r = State.requests.outgoing.find(x => x.student.id === otherId);
+      return `<button class="btn btn-secondary btn-sm" title="Cancel request" onclick="answerRequest(${r.id}, 'cancel')">Requested ✕</button>`;
+    }
+    case 'incoming': {
+      const r = State.requests.incoming.find(x => x.student.id === otherId);
+      return `<button class="btn btn-primary btn-sm" onclick="answerRequest(${r.id}, 'accept')">Accept request</button>`;
+    }
+    default:
+      return `<button class="btn btn-secondary btn-sm" onclick="connectWithStudent(${otherId})">+ Connect</button>`;
+  }
+}
+
 window.connectWithStudent = async function (targetId) {
   if (!State.activeStudentId) return;
   try {
-    await API.post('/api/connections', {
-      a: State.activeStudentId,
-      b: targetId
-    });
-    showToast(`Connected with Student #${targetId}!`, 'success');
+    if (signedInStudentId()) {
+      const res = await API.post('/api/connection-requests', { toId: targetId });
+      showToast(res.status === 'connected' ? 'You are now connected!' : 'Connection request sent. They need to accept it.', 'success');
+    } else {
+      // Local C++ demo (no sign-in): connects directly
+      await API.post('/api/connections', { a: State.activeStudentId, b: targetId });
+      showToast(`Connected with Student #${targetId}!`, 'success');
+    }
     await refreshAllData();
   } catch (e) {
     // Error handled in API
   }
 };
+
+window.answerRequest = async function (requestId, action) {
+  try {
+    await API.post(`/api/connection-requests/${requestId}/${action}`, {});
+    showToast({ accept: 'Request accepted. You are now connected!', decline: 'Request declined.', cancel: 'Request cancelled.' }[action], 'success');
+    await refreshAllData();
+  } catch (e) { }
+};
+
+window.removeConnection = async function (otherId, name) {
+  if (!confirm(`Remove ${name} from your connections?`)) return;
+  try {
+    await API.post('/api/connections/remove', { studentId: otherId });
+    showToast('Connection removed.', 'success');
+    await refreshAllData();
+  } catch (e) { }
+};
+
+async function loadConnectionRequests() {
+  const badge = document.getElementById('requests-badge');
+  const card = document.getElementById('requests-card');
+  if (!signedInStudentId()) {
+    State.requests = { incoming: [], outgoing: [] };
+    badge?.classList.add('hidden');
+    card?.classList.add('hidden');
+    return;
+  }
+  try {
+    State.requests = await API.get('/api/connection-requests');
+  } catch (e) {
+    State.requests = { incoming: [], outgoing: [] };
+  }
+  const n = State.requests.incoming.length;
+  if (badge) { badge.textContent = n; badge.classList.toggle('hidden', n === 0); }
+  renderRequestsPanel();
+}
+
+function renderRequestsPanel() {
+  const card = document.getElementById('requests-card');
+  const list = document.getElementById('requests-list');
+  if (!card || !list) return;
+  const { incoming, outgoing } = State.requests;
+  card.classList.toggle('hidden', !signedInStudentId());
+  if (incoming.length === 0 && outgoing.length === 0) {
+    list.innerHTML = `<span class="text-muted small">No pending requests.</span>`;
+    return;
+  }
+  list.innerHTML =
+    incoming.map(r => `
+      <div class="friend-item-row pymk-row">
+        <div class="pymk-info">
+          <span><strong>${escapeHtml(r.student.name)}</strong> (${escapeHtml(r.student.department)})</span>
+          <span class="pymk-via">wants to connect</span>
+        </div>
+        <span class="post-actions">
+          <button class="btn btn-primary btn-sm" onclick="answerRequest(${r.id}, 'accept')">Accept</button>
+          <button class="post-action-btn" onclick="answerRequest(${r.id}, 'decline')">Decline</button>
+        </span>
+      </div>`).join('') +
+    outgoing.map(r => `
+      <div class="friend-item-row pymk-row">
+        <div class="pymk-info">
+          <span><strong>${escapeHtml(r.student.name)}</strong> (${escapeHtml(r.student.department)})</span>
+          <span class="pymk-via">request sent, waiting</span>
+        </div>
+        <button class="post-action-btn" onclick="answerRequest(${r.id}, 'cancel')">Cancel</button>
+      </div>`).join('');
+}
 
 // --- TAB 2: D3 Social Network Graph ---
 function renderNetworkGraph() {
@@ -485,10 +586,12 @@ async function updateMutualsPanel() {
     if (friends.length === 0) {
       activeFriendsContainer.innerHTML = `<span class="text-muted small">No direct connections yet.</span>`;
     } else {
+      const mine = signedInStudentId() && State.activeStudentId === signedInStudentId();
       activeFriendsContainer.innerHTML = friends.map(f => `
         <div class="friend-item-row">
           <span>#${f.id} <strong>${escapeHtml(f.name)}</strong> (${escapeHtml(f.department)})</span>
-          <span class="badge-pill">Direct</span>
+          ${mine ? `<button class="post-action-btn danger" onclick='removeConnection(${f.id}, ${JSON.stringify(escapeHtml(f.name))})'>Remove</button>`
+                 : `<span class="badge-pill">Direct</span>`}
         </div>
       `).join('');
     }
@@ -523,7 +626,7 @@ async function renderPeopleYouMayKnow() {
             <span>#${s.id} <strong>${escapeHtml(s.name)}</strong> (${escapeHtml(s.department)})</span>
             <span class="pymk-via" title="${label}: ${names.join(', ')}">${label} &middot; via ${via}</span>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="connectWithStudent(${s.id})">+ Connect</button>
+          ${connectButtonHtml(s.id)}
         </div>
       `;
     }).join('');
@@ -727,7 +830,7 @@ function renderGroupsGrid() {
             <button class="btn btn-secondary btn-sm" style="color:var(--danger);" onclick="leaveGroup(${g.id})">
               Leave Group
             </button>
-          ` : `
+          ` : g.isProjectGroup ? `<span class="text-muted small" title="Members are chosen by the project author">Invite only</span>` : `
             <button class="btn btn-primary btn-sm" onclick="joinGroup(${g.id})">
               Join Group
             </button>
@@ -1083,8 +1186,8 @@ function setupEventListeners() {
     }
 
     try {
-      await API.post('/api/connections', { a, b });
-      showToast("Connection established!", "success");
+      const res = await API.post('/api/connections', { a, b });
+      showToast(res && res.status === 'pending' ? "Connection request sent. They need to accept it." : "Connection established!", "success");
       document.getElementById('modal-connect').classList.add('hidden');
       await refreshAllData();
       if (document.getElementById('tab-network').classList.contains('active')) {
@@ -1213,11 +1316,17 @@ function escapeHtml(str) {
 // Direct Messaging / Chat Logic
 // ==========================================================================
 
+// Signed in: you can only message your connections. Local demo: everyone.
+function chatContacts() {
+  const me = signedInStudentId();
+  return State.students.filter(s => s.id !== State.activeStudentId && (!me || isConnected(me, s.id)));
+}
+
 function initChatTab() {
   renderChatContacts();
 
   // Default to first contact if none selected
-  const contacts = State.students.filter(s => s.id !== State.activeStudentId);
+  const contacts = chatContacts();
   if (contacts.length > 0 && !State.selectedChatPartnerId) {
     selectChatPartner(contacts[0].id);
   } else if (State.selectedChatPartnerId) {
@@ -1229,10 +1338,12 @@ function renderChatContacts() {
   const container = document.getElementById('chat-partners-list');
   if (!container) return;
 
-  const contacts = State.students.filter(s => s.id !== State.activeStudentId);
+  const contacts = chatContacts();
 
   if (contacts.length === 0) {
-    container.innerHTML = '<p class="text-muted small" style="padding:1rem;">No other students available</p>';
+    container.innerHTML = signedInStudentId()
+      ? '<p class="text-muted small" style="padding:1rem;">Connect with students to message them.</p>'
+      : '<p class="text-muted small" style="padding:1rem;">No other students available</p>';
     return;
   }
 
