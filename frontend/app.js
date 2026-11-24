@@ -26,8 +26,10 @@ async function getIdToken(forceRefresh = false) {
   const account = msalInstance.getAllAccounts()[0];
   if (!account) return null;
   try {
+    // Same scope as sign-in, so MSAL answers from its cache; every result
+    // also carries the ID token, which is what our server verifies.
     const result = await msalInstance.acquireTokenSilent({
-      scopes: ["openid", "profile", "email"],
+      scopes: ["User.Read"],
       account,
       forceRefresh
     });
@@ -101,6 +103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   try {
     await refreshAllData();
+    // Signed in before this update (no saved profile ID yet)? Ask the server once.
+    if (sessionStorage.getItem("geu_student_email") && !signedInStudentId() && await getIdToken()) {
+      try {
+        const profile = await API.post("/api/students", {});
+        sessionStorage.setItem("geu_student_id", String(profile.id));
+        await refreshAllData();
+      } catch (e) { /* not signed in any more; browse anonymously */ }
+    }
     // Signed in? Show the site as yourself. Otherwise browse as the first student.
     const me = signedInStudentId();
     if (me) {
