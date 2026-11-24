@@ -115,6 +115,73 @@ vector<int> Graph::peopleYouMayKnow(int studentId) const {
     return suggestions;
 }
 
+// -------------------------------------------------------
+// suggestFriends: ranked "people you may know".
+//
+// A student C is 2 steps away from me when some friend F of
+// mine is connected to C, and C is neither me nor already my
+// friend. Every such F is a MUTUAL friend of me and C, so we
+// collect them while walking the two levels:
+//   level 1: my friends F            (adjacency list of me)
+//   level 2: friends C of each F     (adjacency list of F)
+// More mutual friends = stronger suggestion, so we sort by
+// that count (the "common neighbours" idea from link
+// prediction). Ties go to the smaller ID so output is stable.
+//
+// Time:  O(sum of degree(F) over my friends) to collect,
+//        plus O(S log S) to sort the S suggestions.
+// Space: O(S + number of mutual links found).
+// -------------------------------------------------------
+static bool strongerSuggestion(const FriendSuggestion& a, const FriendSuggestion& b) {
+    if (a.mutualIds.size() != b.mutualIds.size()) {
+        return a.mutualIds.size() > b.mutualIds.size();
+    }
+    return a.studentId < b.studentId;
+}
+
+vector<FriendSuggestion> Graph::suggestFriends(int studentId) const {
+    vector<FriendSuggestion> suggestions;
+
+    auto me = adjacencyList.find(studentId);
+    if (me == adjacencyList.end()) {
+        return suggestions;   // unknown student -> no suggestions
+    }
+
+    // My direct friends, in a hash set for O(1) "already friends?" checks
+    unordered_set<int> friends(me->second.begin(), me->second.end());
+
+    // candidate ID -> position in `suggestions`
+    unordered_map<int, int> indexOf;
+
+    for (int friendId : me->second) {                  // level 1
+        auto it = adjacencyList.find(friendId);
+        if (it == adjacencyList.end()) {
+            continue;
+        }
+        for (int candidate : it->second) {             // level 2
+            if (candidate == studentId || friends.count(candidate)) {
+                continue;   // that's me, or already my friend
+            }
+            auto pos = indexOf.find(candidate);
+            if (pos == indexOf.end()) {
+                indexOf[candidate] = (int)suggestions.size();
+                FriendSuggestion s;
+                s.studentId = candidate;
+                s.mutualIds.push_back(friendId);
+                suggestions.push_back(s);
+            } else {
+                suggestions[pos->second].mutualIds.push_back(friendId);
+            }
+        }
+    }
+
+    for (FriendSuggestion& s : suggestions) {
+        sort(s.mutualIds.begin(), s.mutualIds.end());
+    }
+    sort(suggestions.begin(), suggestions.end(), strongerSuggestion);
+    return suggestions;
+}
+
 void Graph::display() const {
     for (const auto& pair : adjacencyList) {
         cout << pair.first << " -> ";

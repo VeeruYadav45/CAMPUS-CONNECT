@@ -231,6 +231,54 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
             return
 
+        # 8b. GET /api/students/:id/suggestions?limit=10  — "People you may know"
+        # Same algorithm as Graph::suggestFriends in C++: walk 2 levels of the
+        # connection graph; every friend F that links me to a student C is a
+        # mutual friend; rank by most mutual friends, ties by smaller ID.
+        if '/students/' in path and path.endswith('/suggestions'):
+            qs = parse_qs(parsed.query)
+            try:
+                s_id = path_id(path, 'students')
+                limit = to_int(qs.get('limit', ['10'])[0], "limit")
+                if limit < 1 or limit > 50:
+                    raise BadRequest("limit must be between 1 and 50")
+                students = query_neon("SELECT id, name, department, year, skills, interests FROM students ORDER BY id;").get("rows", [])
+                by_id = {s["id"]: s for s in students}
+                if s_id not in by_id:
+                    self.send_json({"error": "Student not found"}, 404)
+                    return
+                # Adjacency list from the connections table (undirected)
+                adjacency = {}
+                for e in query_neon("SELECT student_a, student_b FROM connections;").get("rows", []):
+                    a, b = e["student_a"], e["student_b"]
+                    if a == b:
+                        continue
+                    adjacency.setdefault(a, set()).add(b)
+                    adjacency.setdefault(b, set()).add(a)
+                my_friends = adjacency.get(s_id, set())
+                mutuals = {}                                   # candidate -> [mutual friend IDs]
+                for f in my_friends:                           # level 1
+                    for c in adjacency.get(f, ()):             # level 2
+                        if c != s_id and c not in my_friends:
+                            mutuals.setdefault(c, []).append(f)
+                ranked = sorted(mutuals.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+                results = []
+                for c, mids in ranked:
+                    if c not in by_id:
+                        continue
+                    results.append({
+                        "student": by_id[c],
+                        "mutualCount": len(mids),
+                        "mutualFriends": [{"id": m, "name": by_id[m]["name"] if m in by_id else f"Student #{m}"}
+                                          for m in sorted(mids)],
+                    })
+                    if len(results) >= limit:
+                        break
+                self.send_json(results)
+            except Exception as e:
+                self.send_error_json(e)
+            return
+
         # 9. GET /api/students/:id/similar  — Jaccard similarity (Python-side)
         if '/students/' in path and path.endswith('/similar'):
             try:
