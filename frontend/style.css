@@ -1640,3 +1640,9 @@ textarea:focus {
   color: #ef4444;
   border-color: #ef4444;
 }
+
+.project-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

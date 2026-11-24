@@ -563,6 +563,31 @@ class handler(BaseHTTPRequestHandler):
                         query_neon("DELETE FROM group_posts WHERE id = $1;", [p_id])
                         self.send_json({"deleted": p_id})
                     return
+                if len(parts) >= 3 and parts[-3] == 'project-posts':
+                    # POST /api/project-posts/:id/edit {projectTitle, requiredSkills, teamSizeNeeded, content}
+                    # POST /api/project-posts/:id/delete      — author only
+                    p_id = to_int(parts[-2], "project id")
+                    me = self.current_student_id()
+                    rows = query_neon("SELECT author_id FROM project_posts WHERE id = $1;", [p_id]).get("rows", [])
+                    if not rows:
+                        self.send_json({"error": "Project post not found"}, 404)
+                        return
+                    if rows[0]["author_id"] != me:
+                        raise AuthError(f"you can only {action} your own project posts", 403)
+                    if action == 'edit':
+                        title = text_field(body.get('projectTitle'), "projectTitle", 200, required=True)
+                        skills = pg_text_array(body.get('requiredSkills', []), "requiredSkills")
+                        size = to_int(body.get('teamSizeNeeded', 3), "teamSizeNeeded")
+                        if size < 1 or size > 20:
+                            raise BadRequest("teamSizeNeeded must be between 1 and 20")
+                        content = text_field(body.get('content') or title, "content", 2000) or title
+                        res = query_neon("UPDATE project_posts SET project_title = $1, required_skills = $2::text[], team_size_needed = $3, content = $4 WHERE id = $5 RETURNING id, author_id as \"authorId\", author_name as \"authorName\", content, project_title as \"projectTitle\", required_skills as \"requiredSkills\", team_size_needed as \"teamSizeNeeded\", to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;",
+                                         [title, skills, size, content, p_id])
+                        self.send_json(res["rows"][0])
+                    else:
+                        query_neon("DELETE FROM project_posts WHERE id = $1;", [p_id])
+                        self.send_json({"deleted": p_id})
+                    return
                 if len(parts) >= 3 and parts[-3] == 'posts' and '/project-posts/' not in path:
                     p_id = to_int(parts[-2], "post id")
                     me = self.current_student_id()
