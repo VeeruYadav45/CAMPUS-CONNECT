@@ -18,37 +18,70 @@ const State = {
 };
 
 // --- API Helpers ---
-const API = {
-  async get(endpoint) {
-    try {
-      const res = await fetch(endpoint);
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || 'Server error');
-      return json.data;
-    } catch (err) {
-      console.error(`GET ${endpoint} failed:`, err);
-      showToast(err.message, 'error');
-      throw err;
-    }
-  },
-
-  async post(endpoint, body) {
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || 'Request failed');
-      return json.data;
-    } catch (err) {
-      console.error(`POST ${endpoint} failed:`, err);
-      showToast(err.message, 'error');
-      throw err;
-    }
+// When signed in, every request carries the Microsoft ID token
+// ("Authorization: Bearer ...") so the server can verify who you are.
+// On 401 (e.g. token expired after ~1 hour) we refresh it once and retry.
+async function getIdToken(forceRefresh = false) {
+  if (!msalInstance || !sessionStorage.getItem("geu_student_email")) return null;
+  const account = msalInstance.getAllAccounts()[0];
+  if (!account) return null;
+  try {
+    // Same scope as sign-in, so MSAL answers from its cache; every result
+    // also carries the ID token, which is what our server verifies.
+    const result = await msalInstance.acquireTokenSilent({
+      scopes: ["User.Read"],
+      account,
+      forceRefresh
+    });
+    return result.idToken || null;
+  } catch (e) {
+    console.warn("Could not get sign-in token:", e);
+    return null;
   }
+}
+
+async function apiRequest(method, endpoint, body) {
+  const send = async (forceRefresh) => {
+    const headers = {};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const token = await getIdToken(forceRefresh);
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(endpoint, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    return { res, hadToken: !!token };
+  };
+
+  try {
+    let { res, hadToken } = await send(false);
+    if (res.status === 401 && hadToken) {
+      ({ res } = await send(true));   // token expired -> refresh once
+    }
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      const msg = (json.data && json.data.error) || json.error || 'Request failed';
+      throw new Error(msg);
+    }
+    return json.data;
+  } catch (err) {
+    console.error(`${method} ${endpoint} failed:`, err);
+    showToast(err.message, 'error');
+    throw err;
+  }
+}
+
+const API = {
+  get(endpoint) { return apiRequest('GET', endpoint); },
+  post(endpoint, body) { return apiRequest('POST', endpoint, body || {}); }
 };
+
+// The signed-in student's ID (saved for this browser tab), or null
+function signedInStudentId() {
+  const id = parseInt(sessionStorage.getItem("geu_student_id"));
+  return Number.isInteger(id) && State.students.some(s => s.id === id) ? id : null;
+}
 
 // --- Toast Notifications ---
 function showToast(message, type = 'info') {
@@ -70,8 +103,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   try {
     await refreshAllData();
-    // Default acting user to the first student if available
-    if (State.students.length > 0) {
+    // Signed in before this update (no saved profile ID yet)? Ask the server once.
+    if (sessionStorage.getItem("geu_student_email") && !signedInStudentId() && await getIdToken()) {
+      try {
+        const profile = await API.post("/api/students", {});
+        sessionStorage.setItem("geu_student_id", String(profile.id));
+        await refreshAllData();
+      } catch (e) { /* not signed in any more; browse anonymously */ }
+    }
+    // Signed in? Show the site as yourself. Otherwise browse as the first student.
+    const me = signedInStudentId();
+    if (me) {
+      setActiveStudent(me);
+    } else if (State.students.length > 0) {
       setActiveStudent(State.students[0].id);
     }
   } catch (e) {
@@ -159,7 +203,7 @@ async function refreshAllData() {
     renderFeedTimeline();
 
     if (!State.activeStudentId && State.students.length > 0) {
-      State.activeStudentId = State.students[0].id;
+      State.activeStudentId = signedInStudentId() || State.students[0].id;
     }
     setActiveStudent(State.activeStudentId || (State.students[0] ? State.students[0].id : null));
 
@@ -1237,30 +1281,23 @@ async function onMicrosoftAuthSuccess(name, email) {
   updateMsAuthUI(name, email);
   showToast(`Welcome, ${name}! Signed in via Graphic Era Outlook 🎓`, "success");
 
-  // Match by email (unique), not name
-  let matchedStudent = State.students.find(s =>
-    s.email && s.email.toLowerCase() === email.toLowerCase()
-  );
-
-  if (matchedStudent) {
-    setActiveStudent(matchedStudent.id);
-  } else {
-    // First-time login — auto-create a verified student profile
-    try {
-      const newStudent = await API.post("/api/students", {
-        name: name,
-        email: email,
-        department: "CSE",
-        year: 2,
-        skills: ["C++", "Python", "DSA"],
-        interests: ["Web Dev", "AI"]
-      });
-      await refreshAllData();
-      setActiveStudent(newStudent.id);
-      showToast(`Verified student profile created for ${name}!`, "info");
-    } catch (e) {
-      console.warn("Could not auto-register student profile:", e);
-    }
+  // Ask the server who we are. It verifies the Microsoft token and returns
+  // our profile, creating it on the first sign-in. (Emails are no longer in
+  // the public student list, so we can't match by email in the browser.)
+  try {
+    const me = await API.post("/api/students", {
+      name: name,
+      email: email,
+      department: "CSE",
+      year: 2,
+      skills: ["C++", "Python", "DSA"],
+      interests: ["Web Dev", "AI"]
+    });
+    sessionStorage.setItem("geu_student_id", String(me.id));
+    await refreshAllData();
+    setActiveStudent(me.id);
+  } catch (e) {
+    console.warn("Could not load your student profile:", e);
   }
 }
 
@@ -1283,8 +1320,10 @@ function updateMsAuthUI(name, email) {
 }
 
 function handleMicrosoftLogout() {
+  // Removing these also stops getIdToken() from attaching the token
   sessionStorage.removeItem("geu_student_email");
   sessionStorage.removeItem("geu_student_name");
+  sessionStorage.removeItem("geu_student_id");
 
   const btnLogin = document.getElementById("btn-ms-login");
   const profileDiv = document.getElementById("ms-user-profile");

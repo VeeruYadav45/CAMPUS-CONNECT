@@ -1,5 +1,9 @@
 from http.server import BaseHTTPRequestHandler
+import base64
+import hashlib
+import hmac
 import json
+import time
 import urllib.request
 import ssl
 import os
@@ -66,6 +70,97 @@ def pg_text_array(items, field):
         parts.append(f'"{text}"')
     return "{" + ",".join(parts) + "}"
 
+class AuthError(Exception):
+    """401 = not signed in / invalid token, 403 = signed in but not allowed."""
+    def __init__(self, message, status=401):
+        super().__init__(message)
+        self.status = status
+
+# ---------------------------------------------------------------------------
+# Microsoft sign-in verification
+#
+# The browser signs in with Microsoft (MSAL) and sends the ID token it got as
+# "Authorization: Bearer <token>". We never trust student IDs sent by the
+# browser for writes; instead we verify the token here and use the email
+# inside it. Verification = RS256 signature check against Microsoft's
+# published keys + issuer/audience/tenant/expiry checks. Standard library
+# only, so the Vercel function needs no extra packages.
+# ---------------------------------------------------------------------------
+MS_TENANT_ID = os.environ.get("MS_TENANT_ID", "1490b17d-5dc9-4cbf-aeba-a2e854f521b8")
+MS_CLIENT_ID = os.environ.get("MS_CLIENT_ID", "690b6eff-568c-4b04-8f26-3e27c1089010")
+MS_ISSUER = f"https://login.microsoftonline.com/{MS_TENANT_ID}/v2.0"
+MS_JWKS_URL = f"https://login.microsoftonline.com/{MS_TENANT_ID}/discovery/v2.0/keys"
+ALLOWED_EMAIL_DOMAINS = ("@geu.ac.in", "@graphicera.ac.in")
+CLOCK_SKEW_SECONDS = 300
+
+# DER prefix of a SHA-256 DigestInfo (PKCS#1 v1.5, RFC 8017 section 9.2)
+_SHA256_DIGEST_INFO = bytes.fromhex("3031300d060960864801650304020105000420")
+
+_jwks_cache = {"keys": {}, "fetched_at": 0.0}
+
+def _b64url_decode(text):
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+def fetch_jwks():
+    """Download Microsoft's public signing keys: {kid: (n, e)}."""
+    with urllib.request.urlopen(MS_JWKS_URL, context=ssl.create_default_context(), timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    keys = {}
+    for k in data.get("keys", []):
+        if k.get("kty") == "RSA" and "n" in k and "e" in k and "kid" in k:
+            keys[k["kid"]] = (int.from_bytes(_b64url_decode(k["n"]), "big"),
+                              int.from_bytes(_b64url_decode(k["e"]), "big"))
+    return keys
+
+def _signing_key(kid):
+    """Cached key lookup; refresh at most every 5 minutes (keys rotate)."""
+    now = time.time()
+    if kid not in _jwks_cache["keys"] and now - _jwks_cache["fetched_at"] > 300:
+        _jwks_cache["keys"] = fetch_jwks()
+        _jwks_cache["fetched_at"] = now
+    return _jwks_cache["keys"].get(kid)
+
+def _rs256_valid(signing_input, signature, n, e):
+    """RSASSA-PKCS1-v1_5 with SHA-256: compare the full expected encoding."""
+    k = (n.bit_length() + 7) // 8
+    if len(signature) != k:
+        return False
+    s = int.from_bytes(signature, "big")
+    if s >= n:
+        return False
+    em = pow(s, e, n).to_bytes(k, "big")
+    t = _SHA256_DIGEST_INFO + hashlib.sha256(signing_input).digest()
+    if k < len(t) + 11:
+        return False
+    expected = b"\x00\x01" + b"\xff" * (k - len(t) - 3) + b"\x00" + t
+    return hmac.compare_digest(em, expected)
+
+def verify_ms_id_token(token):
+    """Return (email, name) for a valid Graphic Era Microsoft ID token, else raise AuthError."""
+    try:
+        header_b64, payload_b64, sig_b64 = token.split(".")
+        header = json.loads(_b64url_decode(header_b64))
+        claims = json.loads(_b64url_decode(payload_b64))
+        signature = _b64url_decode(sig_b64)
+    except Exception:
+        raise AuthError("invalid sign-in token")
+    if header.get("alg") != "RS256":
+        raise AuthError("invalid sign-in token")
+    key = _signing_key(header.get("kid"))
+    if not key or not _rs256_valid(f"{header_b64}.{payload_b64}".encode("ascii"), signature, *key):
+        raise AuthError("invalid sign-in token")
+    now = time.time()
+    if claims.get("iss") != MS_ISSUER or claims.get("tid") != MS_TENANT_ID or claims.get("aud") != MS_CLIENT_ID:
+        raise AuthError("sign-in token is not for Campus Connect")
+    if not isinstance(claims.get("exp"), (int, float)) or claims["exp"] < now - CLOCK_SKEW_SECONDS:
+        raise AuthError("sign-in expired, please sign in again")
+    if isinstance(claims.get("nbf"), (int, float)) and claims["nbf"] > now + CLOCK_SKEW_SECONDS:
+        raise AuthError("invalid sign-in token")
+    email = str(claims.get("preferred_username") or claims.get("email") or claims.get("upn") or "").strip().lower()
+    if not email.endswith(ALLOWED_EMAIL_DOMAINS):
+        raise AuthError("please sign in with your Graphic Era account", 403)
+    return email, str(claims.get("name") or email.split("@")[0])
+
 def path_id(path, segment):
     """Return the integer that follows `segment` in the URL path, e.g. /groups/7/join -> 7."""
     parts = path.split('/')
@@ -112,32 +207,51 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
         self.wfile.write(json.dumps({"ok": status in [200, 201], "data": data}).encode('utf-8'))
 
     def send_error_json(self, e):
-        """400 for invalid user input, 500 for everything else."""
+        """400 for invalid user input, 401/403 for sign-in problems, 500 for everything else."""
         if isinstance(e, BadRequest):
             self.send_json({"error": str(e)}, 400)
+        elif isinstance(e, AuthError):
+            self.send_json({"error": str(e)}, e.status)
         else:
             self.send_json({"error": str(e)}, 500)
+
+    # --- who is calling? -------------------------------------------------
+    def signed_in_user(self):
+        """(email, name) from the verified Microsoft token, or raise AuthError(401)."""
+        auth = self.headers.get('Authorization') or ''
+        if not auth.startswith('Bearer '):
+            raise AuthError("please sign in with your GEU Outlook account")
+        return verify_ms_id_token(auth[len('Bearer '):].strip())
+
+    def current_student_id(self):
+        """ID of the signed-in student's profile, or raise AuthError."""
+        email, _ = self.signed_in_user()
+        res = query_neon("SELECT id FROM students WHERE lower(email) = $1;", [email])
+        rows = res.get("rows", [])
+        if not rows:
+            raise AuthError("no profile yet, please sign in again to create one", 403)
+        return rows[0]["id"]
 
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
 
-        # 1. GET /api/students
+        # 1. GET /api/students  — public directory (no emails: privacy-first)
         if path.endswith('/api/students') or path.endswith('/students'):
             try:
-                res = query_neon("SELECT id, name, email, department, year, skills, interests FROM students ORDER BY id;")
+                res = query_neon("SELECT id, name, department, year, skills, interests FROM students ORDER BY id;")
                 self.send_json(res.get("rows", []))
             except Exception as e:
                 self.send_error_json(e)
@@ -190,12 +304,14 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json([])
             return
 
-        # 6. GET /api/messages/conversation?user1=&user2=
+        # 6. GET /api/messages/conversation?user1=&user2=  — only the two participants may read it
         if 'messages/conversation' in path:
             qs = parse_qs(parsed.query)
             try:
                 u1 = to_int(qs.get('user1', ['0'])[0], "user1")
                 u2 = to_int(qs.get('user2', ['0'])[0], "user2")
+                if self.current_student_id() not in (u1, u2):
+                    raise AuthError("you can only read your own conversations", 403)
                 sql = "SELECT id, sender_id as \"senderId\", receiver_id as \"receiverId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM messages WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1) ORDER BY id;"
                 res = query_neon(sql, [u1, u2])
                 self.send_json(res.get("rows", []))
@@ -203,10 +319,12 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
             return
 
-        # 7. GET /api/messages/partners/:id
+        # 7. GET /api/messages/partners/:id  — only your own chat list
         if 'messages/partners' in path:
             try:
                 s_id = to_int(path.split('/')[-1], "student id")
+                if self.current_student_id() != s_id:
+                    raise AuthError("you can only see your own chats", 403)
                 sql = "SELECT DISTINCT s.id, s.name, s.department, s.year, s.skills, s.interests FROM students s JOIN messages m ON (s.id = m.sender_id AND m.receiver_id = $1) OR (s.id = m.receiver_id AND m.sender_id = $1);"
                 res = query_neon(sql, [s_id])
                 self.send_json(res.get("rows", []))
@@ -393,26 +511,35 @@ class handler(BaseHTTPRequestHandler):
             self.send_json({"error": "invalid JSON body"}, 400)
             return
 
-        # 1. POST /api/students (Register/Login via Microsoft)
+        # 1. POST /api/students  — sign in: returns your profile, creating it on first sign-in.
+        #    Name and email come from the verified Microsoft token, never from the request body.
         if path.endswith('/api/students') or path.endswith('/students'):
             try:
-                name = str(body.get('name', 'Student'))
+                email, ms_name = self.signed_in_user()
+                find = "SELECT id, name, email, department, year, skills, interests FROM students WHERE lower(email) = $1;"
+                existing = query_neon(find, [email]).get("rows", [])
+                if existing:
+                    self.send_json(existing[0], 200)
+                    return
                 dept = str(body.get('department', 'CSE'))
                 year = to_int(body.get('year', 2), "year")
-                email = str(body.get('email', f"{name.lower().replace(' ', '.')}@geu.ac.in"))
                 skills = pg_text_array(body.get('skills', ['C++', 'Python', 'DSA']), "skills")
                 interests = pg_text_array(body.get('interests', ['Web Dev', 'AI']), "interests")
-                sql = "INSERT INTO students (name, email, department, year, skills, interests) VALUES ($1, $2, $3, $4, $5::text[], $6::text[]) RETURNING id, name, department, year, skills, interests;"
-                res = query_neon(sql, [name, email, dept, year, skills, interests])
-                self.send_json(res["rows"][0], 200)
+                sql = "INSERT INTO students (name, email, department, year, skills, interests) VALUES ($1, $2, $3, $4, $5::text[], $6::text[]) ON CONFLICT (email) DO NOTHING RETURNING id, name, email, department, year, skills, interests;"
+                rows = query_neon(sql, [ms_name, email, dept, year, skills, interests]).get("rows", [])
+                if not rows:   # created by a parallel request a moment ago
+                    rows = query_neon(find, [email]).get("rows", [])
+                self.send_json(rows[0], 200)
             except Exception as e:
                 self.send_error_json(e)
             return
 
-        # 2. POST /api/students/:id/update (Update Skills & Interests)
+        # 2. POST /api/students/:id/update (Update Skills & Interests) — your own profile only
         if '/api/students/' in path and 'update' in path:
             try:
                 s_id = path_id(path, 'students')
+                if self.current_student_id() != s_id:
+                    raise AuthError("you can only edit your own profile", 403)
                 dept = str(body.get('department', 'CSE'))
                 year = to_int(body.get('year', 2), "year")
                 skills = pg_text_array(body.get('skills', []), "skills")
@@ -424,7 +551,7 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
             return
 
-        # 3. POST /api/connections (Connect with another student)
+        # 3. POST /api/connections (Connect with another student) — one side must be you
         if path.endswith('/api/connections') or path.endswith('/connections'):
             a = body.get('a') or body.get('studentA')
             b = body.get('b') or body.get('studentB')
@@ -432,7 +559,16 @@ class handler(BaseHTTPRequestHandler):
                 try:
                     a = to_int(a, "a")
                     b = to_int(b, "b")
-                    s1, s2 = min(a, b), max(a, b)
+                    me = self.current_student_id()
+                    if me not in (a, b):
+                        raise AuthError("you can only add your own connections", 403)
+                    other = b if a == me else a
+                    if other == me:
+                        raise BadRequest("you cannot connect with yourself")
+                    if not query_neon("SELECT 1 FROM students WHERE id = $1;", [other]).get("rows"):
+                        self.send_json({"error": "Student not found"}, 404)
+                        return
+                    s1, s2 = min(me, other), max(me, other)
                     query_neon("INSERT INTO connections (student_a, student_b) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [s1, s2])
                     self.send_json({"studentA": s1, "studentB": s2}, 200)
                 except Exception as e:
@@ -443,12 +579,8 @@ class handler(BaseHTTPRequestHandler):
 
         # 4. POST /api/project-posts (Add project collaboration post) — MUST come before /posts check
         if '/project-posts' in path and not any(x in path for x in ['top-k', 'create-group']):
-            author_id = body.get('authorId') or body.get('studentId') or 12
             try:
-                author_id = int(author_id)
-            except Exception:
-                author_id = 12
-            try:
+                author_id = self.current_student_id()   # always you, whatever the form says
                 p_title = str(body.get('projectTitle', 'Project'))
                 skills = pg_text_array(body.get('requiredSkills', []), "requiredSkills")
                 size = to_int(body.get('teamSizeNeeded', 3), "teamSizeNeeded")
@@ -464,12 +596,8 @@ class handler(BaseHTTPRequestHandler):
 
         # 5. POST /api/posts (Add feed post) — group posts (/groups/:id/posts) are handled below
         if (path.endswith('/api/posts') or path.endswith('/posts')) and '/groups/' not in path:
-            author_id = body.get('authorId') or body.get('studentId') or 12
             try:
-                author_id = int(author_id)
-            except Exception:
-                author_id = 12
-            try:
+                author_id = self.current_student_id()
                 content = str(body.get('content', ''))
                 s_res = query_neon("SELECT name FROM students WHERE id = $1;", [author_id])
                 author_name = s_res['rows'][0]['name'] if s_res.get('rows') else "Student"
@@ -482,12 +610,17 @@ class handler(BaseHTTPRequestHandler):
 
         # 6. POST /api/groups or /api/project-posts/:id/create-group (Create Team / Group)
         if 'create-group' in path or path.endswith('/groups'):
-            raw_admin = body.get('leaderId') or body.get('adminId') or 12
             try:
-                admin_id = int(raw_admin)
-            except Exception:
-                admin_id = 12
-            try:
+                admin_id = self.current_student_id()   # the creator is the admin
+                if 'create-group' in path:
+                    # Only the author of a project call can turn it into a team
+                    proj = query_neon("SELECT author_id FROM project_posts WHERE id = $1;",
+                                      [path_id(path, 'project-posts')]).get("rows", [])
+                    if not proj:
+                        self.send_json({"error": "Project post not found"}, 404)
+                        return
+                    if proj[0]["author_id"] != admin_id:
+                        raise AuthError("only the project author can create its team", 403)
                 name = str(body.get('groupName') or body.get('name', 'Team'))
                 desc = str(body.get('description', 'Collaboration team'))
                 raw_members = body.get('memberIds', [])
@@ -527,7 +660,7 @@ class handler(BaseHTTPRequestHandler):
         if '/groups/' in path and path.endswith('/join'):
             try:
                 g_id = path_id(path, 'groups')
-                student_id = to_int(body.get('studentId'), "studentId")
+                student_id = self.current_student_id()
                 query_neon("INSERT INTO group_members (group_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;", [g_id, student_id])
                 self.send_json({"groupId": g_id, "studentId": student_id})
             except Exception as e:
@@ -538,18 +671,21 @@ class handler(BaseHTTPRequestHandler):
         if '/groups/' in path and path.endswith('/leave'):
             try:
                 g_id = path_id(path, 'groups')
-                student_id = to_int(body.get('studentId'), "studentId")
+                student_id = self.current_student_id()
                 query_neon("DELETE FROM group_members WHERE group_id = $1 AND student_id = $2;", [g_id, student_id])
                 self.send_json({"groupId": g_id, "studentId": student_id})
             except Exception as e:
                 self.send_error_json(e)
             return
 
-        # 9. POST /api/groups/:id/posts  — post to group discussion
+        # 9. POST /api/groups/:id/posts  — post to group discussion (members only)
         if '/groups/' in path and path.endswith('/posts'):
             try:
                 g_id = path_id(path, 'groups')
-                student_id = to_int(body.get('studentId'), "studentId")
+                student_id = self.current_student_id()
+                member = query_neon("SELECT 1 FROM group_members WHERE group_id = $1 AND student_id = $2;", [g_id, student_id])
+                if not member.get("rows"):
+                    raise AuthError("join the group to post in it", 403)
                 content = str(body.get('content', ''))
                 sql = "INSERT INTO group_posts (group_id, student_id, content) VALUES ($1, $2, $3) RETURNING id, student_id as \"studentId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
                 res = query_neon(sql, [g_id, student_id, content])
@@ -561,8 +697,10 @@ class handler(BaseHTTPRequestHandler):
         # 10. POST /api/messages (Send direct message)
         if path.endswith('/api/messages') or path.endswith('/messages'):
             try:
-                s_id = to_int(body.get('senderId'), "senderId")
+                s_id = self.current_student_id()   # you are always the sender
                 r_id = to_int(body.get('receiverId'), "receiverId")
+                if r_id == s_id:
+                    raise BadRequest("you cannot message yourself")
                 content = str(body.get('content', ''))
                 sql = "INSERT INTO messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING id, sender_id as \"senderId\", receiver_id as \"receiverId\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;"
                 res = query_neon(sql, [s_id, r_id, content])
@@ -571,8 +709,12 @@ class handler(BaseHTTPRequestHandler):
                 self.send_error_json(e)
             return
 
-        # 11. POST /api/demo/load  — seed demo data
+        # 11. POST /api/demo/load  — seed demo data. Off unless ALLOW_DEMO_LOAD=1 is set
+        #     (never set it on the public site: it inserts fake students into the real DB).
         if 'demo/load' in path:
+            if os.environ.get("ALLOW_DEMO_LOAD") != "1":
+                self.send_json({"error": "demo data is disabled on this server"}, 403)
+                return
             try:
                 demo_students = [
                     ("Alice Sharma", "alice.sharma@geu.ac.in", "CSE", 2, ["Python","ML","React"], ["AI","Web Dev"]),
