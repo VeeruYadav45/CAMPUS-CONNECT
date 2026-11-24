@@ -90,6 +90,26 @@ const API = {
   }
 };
 
+// --- Founders: special name style + moderation (role comes from the server) ---
+function isFounderId(id) {
+  const st = State.students.find(s => s.id === id);
+  return !!(st && st.role === 'founder');
+}
+function amFounder() {
+  const me = signedInStudentId();
+  return !!(me && isFounderId(me));
+}
+// Escaped name; founders get the gold crown style everywhere
+function nameHtml(name, id) {
+  const safe = escapeHtml(name);
+  return isFounderId(id)
+    ? `<span class="founder-name" title="Founder of Campus Connect">👑 ${safe}</span>`
+    : safe;
+}
+function avatarClass(id) {
+  return isFounderId(id) ? ' founder-avatar' : '';
+}
+
 // The signed-in student's ID (saved for this browser tab), or null
 function signedInStudentId() {
   const id = parseInt(sessionStorage.getItem("geu_student_id"));
@@ -311,9 +331,9 @@ async function renderStudentsGrid() {
     return `
       <div class="student-card ${isActive ? 'active-card' : ''}">
         <div class="student-card-header">
-          <div class="student-avatar">${escapeHtml(s.name.charAt(0))}</div>
+          <div class="student-avatar${avatarClass(s.id)}">${escapeHtml(s.name.charAt(0))}</div>
           <div class="student-info">
-            <div class="student-name">${escapeHtml(s.name)} ${isActive ? '<span class="badge-pill">You</span>' : ''}</div>
+            <div class="student-name">${nameHtml(s.name, s.id)} ${isActive ? '<span class="badge-pill">You</span>' : ''}</div>
             <div class="student-meta">${escapeHtml(s.department)} &bull; Year ${s.year} &bull; ID: #${s.id}</div>
           </div>
         </div>
@@ -642,7 +662,7 @@ async function updateMutualsPanel() {
       const mine = signedInStudentId() && State.activeStudentId === signedInStudentId();
       activeFriendsContainer.innerHTML = friends.map(f => `
         <div class="friend-item-row">
-          <span>#${f.id} <strong>${escapeHtml(f.name)}</strong> (${escapeHtml(f.department)})</span>
+          <span>#${f.id} <strong>${nameHtml(f.name, f.id)}</strong> (${escapeHtml(f.department)})</span>
           ${mine ? `<button class="post-action-btn danger" onclick='removeConnection(${f.id}, ${JSON.stringify(escapeHtml(f.name))})'>Remove</button>`
                  : `<span class="badge-pill">Direct</span>`}
         </div>
@@ -676,7 +696,7 @@ async function renderPeopleYouMayKnow() {
       return `
         <div class="friend-item-row pymk-row">
           <div class="pymk-info">
-            <span>#${s.id} <strong>${escapeHtml(s.name)}</strong> (${escapeHtml(s.department)})</span>
+            <span>#${s.id} <strong>${nameHtml(s.name, s.id)}</strong> (${escapeHtml(s.department)})</span>
             <span class="pymk-via" title="${label}: ${names.join(', ')}">${label} &middot; via ${via}</span>
           </div>
           ${connectButtonHtml(s.id)}
@@ -775,7 +795,7 @@ window.selectProjectPost = async function (projectId) {
       <div>
         <div class="project-title-large">${escapeHtml(project.projectTitle || 'Project #' + project.id)}</div>
         <div class="text-muted small mt-2">
-          Posted by <strong>${escapeHtml(author ? author.name : (project.authorName || 'Student #' + aId))}</strong> &bull;
+          Posted by <strong>${nameHtml(author ? author.name : (project.authorName || 'Student #' + aId), aId)}</strong> &bull;
           Needed Team Size: <strong>${project.teamSizeNeeded || 3}</strong>
         </div>
       </div>
@@ -783,6 +803,8 @@ window.selectProjectPost = async function (projectId) {
         ${signedInStudentId() && aId === signedInStudentId() ? `
           <button class="post-action-btn" onclick="editProjectPost(${projectId})">Edit</button>
           <button class="post-action-btn danger" onclick="deleteProjectPost(${projectId})">Delete</button>
+        ` : amFounder() ? `
+          <button class="post-action-btn danger" title="Remove as founder" onclick="deleteProjectPost(${projectId})">Remove</button>
         ` : ''}
         ${teamButtons}
       </div>
@@ -818,7 +840,7 @@ window.selectProjectPost = async function (projectId) {
         return `
             <div class="candidate-card selected-for-team" id="candidate-card-${sId}" data-id="${sId}">
               <div class="candidate-rank-badge">Rank #${idx + 1}</div>
-              <div class="student-name">${escapeHtml(sName)}</div>
+              <div class="student-name">${nameHtml(sName, sId)}</div>
               <div class="student-meta">${escapeHtml(sDept)} &bull; Year ${escapeHtml(sYear)}</div>
               
               <div>
@@ -916,7 +938,7 @@ function renderGroupsGrid() {
           <button class="btn btn-secondary btn-sm" onclick="openGroupDiscussion(${g.id})">
             💬 Discussions
           </button>
-          ${signedInStudentId() && g.leaderId === signedInStudentId() ? `
+          ${(signedInStudentId() && g.leaderId === signedInStudentId()) || amFounder() ? `
             <button class="btn btn-secondary btn-sm" style="color:var(--danger);" onclick='deleteGroup(${g.id}, ${JSON.stringify(escapeHtml(g.name))})'>
               Delete Group
             </button>
@@ -985,15 +1007,15 @@ async function refreshGroupPosts(groupId) {
     State.groupPosts = posts;
     const me = signedInStudentId();
     const group = State.groups.find(g => g.id === groupId);
-    const iAmAdmin = !!(me && group && group.leaderId === me);
+    const iAmAdmin = !!(me && group && group.leaderId === me) || amFounder();
     postsList.innerHTML = posts.map(p => {
       const author = State.students.find(s => s.id === p.studentId);
       const mine = me && p.studentId === me;
       return `
         <div class="feed-post-card" style="padding:0.85rem;">
           <div class="post-header">
-            <div class="user-avatar-sm" style="width:26px; height:26px; font-size:0.75rem;">${escapeHtml(author ? author.name.charAt(0) : 'U')}</div>
-            <span class="post-author">${escapeHtml(author ? author.name : (p.authorName || 'Student #' + p.studentId))}</span>
+            <div class="user-avatar-sm${avatarClass(p.studentId)}" style="width:26px; height:26px; font-size:0.75rem;">${escapeHtml(author ? author.name.charAt(0) : 'U')}</div>
+            <span class="post-author">${nameHtml(author ? author.name : (p.authorName || 'Student #' + p.studentId), p.studentId)}</span>
             <span class="post-timestamp">${escapeHtml(p.timestamp || '')}</span>
             ${(mine || iAmAdmin) ? `<span class="post-actions">
               ${mine ? `<button class="post-action-btn" onclick="editGroupPost(${groupId}, ${p.id})">Edit</button>` : ''}
@@ -1025,14 +1047,16 @@ function renderFeedTimeline() {
     return `
       <div class="feed-post-card">
         <div class="post-header">
-          <div class="user-avatar-sm">${escapeHtml(authorName.charAt(0) || 'U')}</div>
+          <div class="user-avatar-sm${avatarClass(authorId)}">${escapeHtml(authorName.charAt(0) || 'U')}</div>
           <div>
-            <div class="post-author">${escapeHtml(authorName)}</div>
+            <div class="post-author">${nameHtml(authorName, authorId)}</div>
             <div class="post-timestamp">${escapeHtml(p.timestamp || '')}</div>
           </div>
           ${me && authorId === me ? `<span class="post-actions">
             <button class="post-action-btn" onclick="editFeedPost(${p.id})">Edit</button>
             <button class="post-action-btn danger" onclick="deleteFeedPost(${p.id})">Delete</button>
+          </span>` : amFounder() ? `<span class="post-actions">
+            <button class="post-action-btn danger" title="Remove as founder" onclick="deleteFeedPost(${p.id})">Remove</button>
           </span>` : ''}
         </div>
         <div class="post-body">${escapeHtml(p.content)}</div>
@@ -1446,7 +1470,7 @@ function renderChatContacts() {
          onclick="selectChatPartner(${c.id})">
       <div class="avatar">${escapeHtml(c.name.charAt(0))}</div>
       <div class="details">
-        <div class="name">${escapeHtml(c.name)}</div>
+        <div class="name">${nameHtml(c.name, c.id)}</div>
         <div class="dept">${escapeHtml(c.department)} &bull; Year ${c.year}</div>
       </div>
     </div>

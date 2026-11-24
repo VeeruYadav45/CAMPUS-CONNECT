@@ -1660,3 +1660,31 @@ textarea:focus {
   line-height: 1.25rem;
   text-align: center;
 }
+
+/* ===== Founders: exclusive animated gold name + crown + glowing avatar ===== */
+.founder-name {
+  font-weight: 800;
+  background: linear-gradient(90deg, #f59e0b, #fde68a, #f97316, #fde68a, #f59e0b);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: founder-shine 4s linear infinite;
+  text-shadow: 0 0 18px rgba(245, 158, 11, 0.25);
+  cursor: help;
+}
+
+@keyframes founder-shine {
+  from { background-position: 0% 50%; }
+  to   { background-position: 300% 50%; }
+}
+
+.founder-avatar {
+  box-shadow: 0 0 0 2px #f59e0b, 0 0 14px 3px rgba(245, 158, 11, 0.55);
+  background: linear-gradient(135deg, #f59e0b, #f97316) !important;
+  color: #1f1300 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .founder-name { animation: none; }
+}
