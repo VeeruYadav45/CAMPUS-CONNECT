@@ -232,6 +232,11 @@ def send_connection_request(me, other):
         rows = query_neon("SELECT id FROM connection_requests WHERE from_id = $1 AND to_id = $2 AND status = 'pending';", [me, other]).get("rows", [])
     return {"status": "pending", "requestId": rows[0]["id"] if rows else None, "studentId": other}
 
+def is_founder(student_id):
+    """Founders moderate the site: they may delete any post, project or group."""
+    rows = query_neon("SELECT 1 FROM site_roles WHERE student_id = $1 AND role = 'founder';", [student_id])
+    return bool(rows.get("rows"))
+
 def invite_to_group(group_id, inviter_id, student_ids):
     """Invite students to a group. Skips unknown students, current members and
     pending invitations. Returns the IDs actually invited."""
@@ -324,6 +329,11 @@ SCHEMA_STATEMENTS = [
     )""",
     """CREATE UNIQUE INDEX IF NOT EXISTS team_invites_one_pending
         ON team_invites (group_id, student_id) WHERE status = 'pending'""",
+    # Site roles (e.g. 'founder'): kept in the database, never in the public code
+    """CREATE TABLE IF NOT EXISTS site_roles (
+        student_id INTEGER PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL
+    )""",
 ]
 for _stmt in SCHEMA_STATEMENTS:
     try:
@@ -441,7 +451,8 @@ class handler(BaseHTTPRequestHandler):
         # 1. GET /api/students  — public directory (no emails: privacy-first)
         if path.endswith('/api/students') or path.endswith('/students'):
             try:
-                res = query_neon("SELECT id, name, department, year, skills, interests FROM students ORDER BY id;")
+                res = query_neon("SELECT s.id, s.name, s.department, s.year, s.skills, s.interests, r.role "
+                                 "FROM students s LEFT JOIN site_roles r ON r.student_id = s.id ORDER BY s.id;")
                 self.send_json(res.get("rows", []))
             except Exception as e:
                 self.send_error_json(e)
@@ -727,7 +738,7 @@ class handler(BaseHTTPRequestHandler):
                         res = query_neon("UPDATE group_posts SET content = $1 WHERE id = $2 RETURNING id, author_id as \"studentId\", author_name as \"authorName\", content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp;", [content, p_id])
                         self.send_json(res["rows"][0])
                     else:
-                        if not (is_author or rows[0]["admin_id"] == me):
+                        if not (is_author or rows[0]["admin_id"] == me or is_founder(me)):
                             raise AuthError("only the author or the group admin can delete this post", 403)
                         query_neon("DELETE FROM group_posts WHERE id = $1;", [p_id])
                         self.send_json({"deleted": p_id})
@@ -739,7 +750,7 @@ class handler(BaseHTTPRequestHandler):
                     rows = query_neon("SELECT admin_id FROM groups WHERE id = $1;", [g_id]).get("rows", [])
                     if not rows:
                         raise ApiError("Group not found", 404)
-                    if rows[0]["admin_id"] != me:
+                    if rows[0]["admin_id"] != me and not is_founder(me):
                         raise AuthError("only the group admin can delete the group", 403)
                     query_neon("DELETE FROM groups WHERE id = $1;", [g_id])
                     self.send_json({"deleted": g_id})
@@ -753,7 +764,7 @@ class handler(BaseHTTPRequestHandler):
                     if not rows:
                         self.send_json({"error": "Project post not found"}, 404)
                         return
-                    if rows[0]["author_id"] != me:
+                    if rows[0]["author_id"] != me and not (action == 'delete' and is_founder(me)):
                         raise AuthError(f"you can only {action} your own project posts", 403)
                     if action == 'edit':
                         title = text_field(body.get('projectTitle'), "projectTitle", 200, required=True)
@@ -776,7 +787,7 @@ class handler(BaseHTTPRequestHandler):
                     if not rows:
                         self.send_json({"error": "Post not found"}, 404)
                         return
-                    if rows[0]["author_id"] != me:
+                    if rows[0]["author_id"] != me and not (action == 'delete' and is_founder(me)):
                         raise AuthError(f"you can only {action} your own posts", 403)
                     if action == 'edit':
                         content = text_field(body.get('content'), "content", 2000, required=True)
