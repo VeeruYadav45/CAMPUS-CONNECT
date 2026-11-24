@@ -10,3 +10,7 @@
 # Secrets and Python cache
 .env
 __pycache__/
+
+# Generated locally (db_sync.py / IDE)
+neon_cache.json
+compile_commands.json

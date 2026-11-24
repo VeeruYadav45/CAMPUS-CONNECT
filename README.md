@@ -1,117 +1,73 @@
-# CAMPUS-CONNECT
-PBL sem 3
+# Campus Connect
 
-A campus collaboration platform where students post help requests/offers and find teammates.
+A campus-only peer-discovery and collaboration platform for Graphic Era (Deemed to be University). Students list their skills and interests, find each other, connect, form project teams and message one another. Sign-in uses the university's Microsoft (GEU Outlook) accounts.
 
-## Team Members & Contributions
+**Live site:** https://campus-connect-rose-delta.vercel.app
 
-| Member       | DSA                     | OOP                         |
-|-------------|-------------------------|------------------------------|
-| Veeru       | Unordered Map (Hashing) | Student, Post, Group, DataStore |
-| Aditya      | Graph + BFS             | MatchingStrategy, JaccardMatching, Graph |
-| Tanvay Jain | Priority Queue (Max-Heap) | ProjectPost, ProjectGroup, TopKRanker |
+Semester 3 PBL project (Data Structures + OOP), Dept. of CSE.
 
----
+## Features
 
-## Tanvay's Part: Priority Queue + ProjectPost + ProjectGroup
+| Feature | How it works |
+|---|---|
+| Student directory and search | Hash maps by ID plus inverted indexes for skill, interest and department, giving O(1) average lookups |
+| Similar students | Jaccard similarity over skills and interests |
+| Connection network | Undirected graph stored as an adjacency list, drawn with D3 |
+| People You May Know | Two-level BFS (friends of friends), ranked by mutual-friend count |
+| Project calls and Top-K teammates | Jaccard score plus a bounded min-heap, O(N log k); turn a project call into a team in one click |
+| Groups, group discussions, feed | Create, join and leave groups; members-only group posts |
+| Direct messages | Private, readable only by the two participants |
+| Sign-in | Microsoft (MSAL) in the browser; the server verifies the ID token (RS256, tenant, audience, expiry) |
 
-### What I Built
+## Architecture
 
-1. **ProjectPost** (`include/ProjectPost.h`, `src/ProjectPost.cpp`)
-   - A subclass of `Post` for teammate-seeking posts
-   - Adds project title, required skills, team size needed
-   - Overrides `display()` using polymorphism
+The same frontend (`frontend/`) runs against either backend:
 
-2. **ProjectGroup** (`include/ProjectGroup.h`, `src/ProjectGroup.cpp`)
-   - Extends `Group` to represent a project team
-   - Links to a `ProjectPost` and tracks the project leader
-   - Reuses Group's add/remove member logic
+- **Local C++ server** (`server.cpp`, port 8080): uses the in-memory DSA core in `include/` and `src/`. This is the graded part.
+- **Public site on Vercel:** `api/index.py` is a serverless Python function backed by Neon PostgreSQL. It uses parameterized SQL only, and writes require a verified sign-in.
 
-3. **TopKRanker** (`include/TopKRanker.h`, `src/TopKRanker.cpp`)
-   - Uses `std::priority_queue` (max-heap) to rank students by compatibility
-   - `getTopK()` — ranks all candidates by Jaccard score, returns top K
-   - `getTopKUsingBFS()` — first uses BFS to find connected students in the graph, then ranks only those
+## Run locally
 
-### How My Code Connects to Others
-
-```
-Veeru's DataStore ──> getAllStudents() ──> candidates
-                                              │
-Aditya's Graph ────> bfs(startId) ──> scoped candidate IDs
-                                              │
-Aditya's MatchingStrategy ──> calculateSimilarity() ──> scores
-                                              │
-Tanvay's TopKRanker ──> priority_queue (max-heap) ──> Top-K results
-                                              │
-Tanvay's ProjectGroup ──> auto-add top matches as members
-```
-
-The max-heap (priority queue) sits at the **ranking layer**: it takes raw similarity scores from Aditya's Jaccard matching and efficiently extracts the K best matches. BFS on Aditya's graph scopes the candidates first (only connected students), and student data comes from Veeru's DataStore (no duplication).
-
-### Changes to Existing Code
-
-Only **one file** was modified:
-- `include/post.h` — Changed `private` to `protected` (so `ProjectPost` can inherit), added `virtual` to `display()` and a virtual destructor. This is the standard C++ pattern for enabling inheritance.
-
----
-
-## Build & Run
-
-### Prerequisites
-- g++ with C++11 support (MinGW on Windows, or gcc on Linux/Mac)
-
-### Compile
 ```bash
-g++ -std=c++11 -Wall -I include -o campus_connect.exe main.cpp src/student.cpp src/post.cpp src/Group.cpp src/DataStore.cpp src/Graph.cpp src/JaccardMatching.cpp src/ProjectPost.cpp src/ProjectGroup.cpp src/TopKRanker.cpp
+make server          # build the HTTP server
+./server             # open http://localhost:8080
+curl -X POST localhost:8080/api/demo/load   # load the 10-student demo data
 ```
 
-Or using Make:
+Other targets:
+
 ```bash
-make clean
-make
+make                 # CLI menu demo -> ./campus_connect
+make test            # unit tests for the DSA core ("All N checks passed.")
+make bench           # benchmark -> tests/results.txt
+python3 test_api.py  # API checks against a running local server
 ```
 
-### Run
-```bash
-./campus_connect.exe
-```
+You need g++ with C++11 on Linux or MinGW on Windows; the Makefile handles both.
 
-Then select option **20** to run the full automated demo with 10 sample students.
+Do **not** create a `.env` with the production `DATABASE_URL` for local testing. With it present, the local server writes messages to the live database.
 
-Or pipe the demo input:
-```bash
-./campus_connect.exe < demo_input.txt
-```
-
----
-
-## File Structure
+## Repository layout
 
 ```
-CAMPUS-CONNECT/
-├── include/
-│   ├── student.h          # Veeru: Student class
-│   ├── post.h             # Veeru: Post base class (modified: virtual + protected)
-│   ├── Group.h            # Veeru: Group class
-│   ├── DataStore.h        # Veeru: unordered_map storage layer
-│   ├── Graph.h            # Aditya: adjacency list + BFS
-│   ├── MatchingStrategy.h # Aditya: abstract matching interface
-│   ├── JaccardMatching.h  # Aditya: Jaccard similarity
-│   ├── ProjectPost.h      # Tanvay: teammate-seeking post (inherits Post)
-│   ├── ProjectGroup.h     # Tanvay: project team (inherits Group)
-│   └── TopKRanker.h       # Tanvay: max-heap ranking
-├── src/
-│   ├── student.cpp
-│   ├── post.cpp
-│   ├── Group.cpp
-│   ├── DataStore.cpp
-│   ├── Graph.cpp
-│   ├── JaccardMatching.cpp
-│   ├── ProjectPost.cpp    # Tanvay
-│   ├── ProjectGroup.cpp   # Tanvay
-│   └── TopKRanker.cpp     # Tanvay
-├── main.cpp               # Terminal driver (extended with options 16-20)
-├── Makefile
-├── demo_input.txt
-└── README.md
+include/, src/   DSA core: Student, Post/ProjectPost, Group/ProjectGroup, DataStore,
+                 Graph, MatchingStrategy/JaccardMatching, TopKRanker, Message
+server.cpp       local REST API (cpp-httplib + nlohmann/json, one mutex)
+main.cpp         CLI demo
+api/index.py     Vercel serverless API (Neon PostgreSQL)
+frontend/        single-page web app (HTML/CSS/JS, D3, MSAL)
+tests/           unit tests (test_dsa.cpp, unit_tests.cpp) and benchmark
 ```
+
+## Team
+
+| Member | Modules |
+|---|---|
+| Veeru Yadav (lead) | Student, Post, Group, DataStore (hash maps, inverted index), cloud deployment |
+| Aditya Bagri | Graph (BFS, People You May Know), MatchingStrategy, JaccardMatching |
+| Tanvay Jain | TopKRanker (heap), ProjectPost, ProjectGroup, frontend |
+| Vivekanand | Trie (keyword and prefix search) |
+
+Mentor: Mr. Kanishka Bhatt.
+
+See `CONTRIBUTING.md` for the rules for working on the repo: branches and PRs, tests, and safe SQL.
