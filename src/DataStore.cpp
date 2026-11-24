@@ -2,18 +2,46 @@
 #include <iostream>
 #include <algorithm>
 using namespace std;
+// Add id under key, skipping it if the same student already listed it
+// (e.g. skills {"C++", "C++"}). Ids for one student are added together,
+// so a duplicate is always the last element: O(1) check.
+void DataStore::indexId(unordered_map<string, vector<int>>& index, const string& key, int id) {
+    vector<int>& ids = index[key];
+    if (ids.empty() || ids.back() != id) ids.push_back(id);
+}
+
+// Remove id from the list stored under key (drop the key if it becomes empty)
+void DataStore::unindexId(unordered_map<string, vector<int>>& index, const string& key, int id) {
+    auto it = index.find(key);
+    if (it == index.end()) return;
+    vector<int>& ids = it->second;
+    ids.erase(remove(ids.begin(), ids.end(), id), ids.end());
+    if (ids.empty()) index.erase(it);
+}
+
 void DataStore::addStudent(Student student) {
     int id = student.getId();
+
+    // Re-adding an existing ID updates that student: first remove the old
+    // index entries, otherwise searches return them for skills they no
+    // longer have (and list them twice for skills they kept).
+    auto old = students.find(id);
+    if (old != students.end()) {
+        for (const string& skill : old->second.getSkills()) unindexId(skillIndex, skill, id);
+        for (const string& interest : old->second.getInterests()) unindexId(interestIndex, interest, id);
+        unindexId(departmentIndex, old->second.getDepartment(), id);
+    }
+
     students[id] = student;
     for (const string& skill : student.getSkills()) {
-        skillIndex[skill].push_back(id);
+        indexId(skillIndex, skill, id);
     }
 
     for (const string& interest : student.getInterests()) {
-        interestIndex[interest].push_back(id);
+        indexId(interestIndex, interest, id);
     }
 
-    departmentIndex[student.getDepartment()].push_back(id);
+    indexId(departmentIndex, student.getDepartment(), id);
 
     cout << "Student '" << student.getName() << "' added (ID: " << id << ")." << endl;
 }
@@ -35,15 +63,15 @@ void DataStore::displayAllStudents() const {
         const_cast<Student&>(pair.second).display();
     }
 }
-void DataStore::addGroup(Group group) {
+void DataStore::addGroup(const Group& group) {
     int id = group.getGroupId();
-    groups[id] = group;  // O(1) insert 
+    groups[id] = unique_ptr<Group>(group.clone());  // O(1) insert, keeps the real type
     cout << "Group '" << group.getGroupName() << "' created (ID: " << id << ")." << endl;
 }
 
 Group* DataStore::findGroupById(int id) {
     auto it = groups.find(id);
-    if (it != groups.end()) return &it->second;
+    if (it != groups.end()) return it->second.get();
     return nullptr;
 }
 
@@ -54,11 +82,11 @@ void DataStore::displayAllGroups() const {
     }
     cout << "\n===== ALL GROUPS =====" << endl;
     for (auto& pair : groups) {
-        pair.second.display();
+        pair.second->display();  // virtual: ProjectGroup shows leader + linked post
     }
 }
-void DataStore::addPost(Post post) {
-    posts[post.getPostId()] = post;  // O(1) insert
+void DataStore::addPost(const Post& post) {
+    posts[post.getPostId()] = unique_ptr<Post>(post.clone());  // O(1) insert, keeps the real type
 }
 
 void DataStore::displayAllPosts() const {
@@ -68,7 +96,7 @@ void DataStore::displayAllPosts() const {
     }
     cout << "\n===== ALL POSTS =====" << endl;
     for (auto& pair : posts) {
-        pair.second.display();
+        pair.second->display();  // virtual: ProjectPost shows title + required skills
     }
 }
 
@@ -125,7 +153,7 @@ vector<Student> DataStore::getAllStudents() const {
 vector<Group> DataStore::getAllGroups() const {
     vector<Group> result;
     for (const auto& pair : groups) {
-        result.push_back(pair.second);
+        result.push_back(*pair.second);
     }
     return result;
 }
@@ -133,14 +161,14 @@ vector<Group> DataStore::getAllGroups() const {
 vector<Post> DataStore::getAllPosts() const {
     vector<Post> result;
     for (const auto& pair : posts) {
-        result.push_back(pair.second);
+        result.push_back(*pair.second);
     }
     return result;
 }
 
 Post* DataStore::findPostById(int id) {
     auto it = posts.find(id);
-    if (it != posts.end()) return &it->second;
+    if (it != posts.end()) return it->second.get();
     return nullptr;
 }
 // Add a message

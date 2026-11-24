@@ -19,6 +19,7 @@ private:
 public:
     Group(int groupId, string groupName, string description, int adminId);
     Group() : groupId(0), adminId(0) {}
+    virtual ~Group() {}
 
     int getGroupId() const;
     string getGroupName() const;
@@ -32,7 +33,10 @@ public:
     bool isMember(int studentId) const;
     void addPost(Post post);
     void displayPosts() const;
-    void display() const;
+    virtual void display() const;  // virtual so ProjectGroup can override
+
+    // Polymorphic copy (same reason as Post::clone)
+    virtual Group* clone() const { return new Group(*this); }
 };
 
 #endif

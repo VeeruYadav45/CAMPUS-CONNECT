@@ -39,17 +39,23 @@ def query_neon(sql):
         return json.loads(resp.read().decode("utf-8"))
 
 def pull_all():
-    """Fetch students and messages from Neon and save to neon_cache.json for server.exe"""
+    """Fetch students, messages and connections from Neon and save to neon_cache.json for server.exe"""
     students_res = query_neon("SELECT id, name, skills, interests, department as branch, year FROM students ORDER BY id;")
     messages_res = query_neon("SELECT id, sender_id, receiver_id, content, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') as timestamp FROM messages ORDER BY id;")
-    
+    try:
+        connections_rows = query_neon("SELECT student_a, student_b FROM connections;").get("rows", [])
+    except Exception as e:
+        print(f"Could not fetch connections ({e}); continuing without them.")
+        connections_rows = []
+
     data = {
         "students": students_res.get("rows", []),
-        "messages": messages_res.get("rows", [])
+        "messages": messages_res.get("rows", []),
+        "connections": connections_rows
     }
     with open("neon_cache.json", "w") as f:
         json.dump(data, f, indent=2)
-    print(f"Synced {len(data['students'])} students and {len(data['messages'])} messages from Neon Cloud.")
+    print(f"Synced {len(data['students'])} students, {len(data['messages'])} messages and {len(data['connections'])} connections from Neon Cloud.")
 
 def add_student(name, dept, year, email=""):
     escaped_name = name.replace("'", "''")
@@ -72,6 +78,9 @@ if __name__ == "__main__":
         cmd = sys.argv[1]
         if cmd == "pull":
             pull_all()
+        elif cmd == "add_message_hex" and len(sys.argv) >= 5:
+            # server.cpp hex-encodes the message so no shell metacharacters reach the command line
+            add_message(int(sys.argv[2]), int(sys.argv[3]), bytes.fromhex(sys.argv[4]).decode("utf-8"))
         elif cmd == "add_message" and len(sys.argv) >= 5:
             add_message(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4])
         elif cmd == "add_student" and len(sys.argv) >= 4:

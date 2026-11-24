@@ -42,7 +42,27 @@ static string getCurrentTime() {
     return dt;
 }
 
-// Global registry for ProjectPost specific fields (since DataStore stores Post value types)
+// Hex-encode text so it can be passed to a shell command safely: the result
+// only contains [0-9a-f], so quotes, ;, $, & etc. in user input can never be
+// interpreted by the shell (prevents command injection).
+static string toHex(const string &s) {
+    static const char *digits = "0123456789abcdef";
+    string out;
+    out.reserve(s.size() * 2);
+    for (unsigned char c : s) {
+        out += digits[c >> 4];
+        out += digits[c & 0x0F];
+    }
+    return out;
+}
+
+#ifdef _WIN32
+static const char *PYTHON_CMD = "python";
+#else
+static const char *PYTHON_CMD = "python3";
+#endif
+
+// Global registry for ProjectPost specific fields (getAllPosts() returns Post copies)
 struct ProjectPostMeta {
     string projectTitle;
     vector<string> requiredSkills;
@@ -101,19 +121,19 @@ static bool loadFromNeon() {
             }
         }
 
-        // Add default graph connections
-        graph.addConnection(1, 2);
-        graph.addConnection(1, 5);
-        graph.addConnection(2, 5);
-        graph.addConnection(2, 6);
-        graph.addConnection(3, 7);
-        graph.addConnection(5, 6);
-        graph.addConnection(5, 8);
-        graph.addConnection(6, 8);
-        graph.addConnection(4, 1);
-        graph.addConnection(2, 9);
-        graph.addConnection(3, 10);
-        graph.addConnection(7, 10);
+        // Real connections from the database (no made-up demo edges between real users)
+        size_t edgeCount = 0;
+        if (j.contains("connections")) {
+            for (const auto &c : j["connections"]) {
+                int a = c.value("student_a", 0);
+                int b = c.value("student_b", 0);
+                if (store.findStudentById(a) && store.findStudentById(b)) {
+                    graph.addConnection(a, b);
+                    edgeCount++;
+                }
+            }
+        }
+        cout << "[Neon Cloud] Loaded " << edgeCount << " connections." << endl;
 
         cout << "[Neon Cloud] Successfully loaded " << j["students"].size() << " students and " 
              << (j.contains("messages") ? j["messages"].size() : 0) << " messages from PostgreSQL." << endl;
@@ -971,8 +991,12 @@ int main() {
             store.addMessage(msg);
 
             // Persist message to Neon Cloud
-            string cmd = "python db_sync.py add_message " + to_string(senderId) + " " + to_string(receiverId) + " \"" + content + "\"";
-            system(cmd.c_str());
+            // content is hex-encoded: the shell only ever sees [0-9a-f] (no injection)
+            string cmd = string(PYTHON_CMD) + " db_sync.py add_message_hex " + to_string(senderId) + " " +
+                         to_string(receiverId) + " " + toHex(content);
+            if (system(cmd.c_str()) != 0) {
+                cerr << "[Neon Cloud] Message saved locally only (sync failed)." << endl;
+            }
 
             sendJsonOk(res, messageToJson(msg));
         } catch (const exception &e) {
