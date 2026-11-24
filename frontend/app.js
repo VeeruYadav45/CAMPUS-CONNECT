@@ -594,7 +594,11 @@ window.selectProjectPost = async function (projectId) {
           Needed Team Size: <strong>${project.teamSizeNeeded || 3}</strong>
         </div>
       </div>
-      <div>
+      <div class="project-detail-actions">
+        ${signedInStudentId() && aId === signedInStudentId() ? `
+          <button class="post-action-btn" onclick="editProjectPost(${projectId})">Edit</button>
+          <button class="post-action-btn danger" onclick="deleteProjectPost(${projectId})">Delete</button>
+        ` : ''}
         <button class="btn btn-primary" id="btn-create-project-group" onclick="createGroupFromTopK(${projectId})">
           🚀 Assemble Project Group
         </button>
@@ -885,6 +889,46 @@ window.deleteGroupPost = async function (groupId, postId) {
   } catch (e) { }
 };
 
+// --- Edit / delete your own project posts ---
+// The "Post New Project" modal doubles as the edit form.
+function setProjectModalMode(projectId) {
+  State.editingProjectId = projectId;
+  const modal = document.getElementById('modal-create-project');
+  const heading = modal?.querySelector('h2');
+  const submit = modal?.querySelector('button[type="submit"]');
+  const owner = document.getElementById('proj-leader')?.closest('.form-group');
+  if (heading) heading.textContent = projectId ? 'Edit Project' : 'Post New Project';
+  if (submit) {
+    if (!submit.dataset.createLabel) submit.dataset.createLabel = submit.textContent;
+    submit.textContent = projectId ? 'Save Changes' : submit.dataset.createLabel;
+  }
+  if (owner) owner.style.display = projectId ? 'none' : '';   // the author can't change
+  const leader = document.getElementById('proj-leader');
+  if (leader) leader.required = !projectId;
+}
+
+window.editProjectPost = function (projectId) {
+  const project = State.projectPosts.find(p => p.id === projectId);
+  if (!project) return;
+  setProjectModalMode(projectId);
+  document.getElementById('proj-title').value = project.projectTitle || '';
+  document.getElementById('proj-skills').value = (project.requiredSkills || []).join(', ');
+  document.getElementById('proj-size').value = project.teamSizeNeeded || 3;
+  document.getElementById('modal-create-project').classList.remove('hidden');
+};
+
+window.deleteProjectPost = async function (projectId) {
+  if (!confirm("Delete this project post? Teams already created from it stay.")) return;
+  try {
+    await API.post(`/api/project-posts/${projectId}/delete`, {});
+    showToast("Project post deleted.", "success");
+    State.selectedProjectId = null;
+    document.getElementById('project-active-details')?.classList.add('hidden');
+    document.getElementById('project-empty-state')?.classList.remove('hidden');
+    await refreshAllData();
+  } catch (e) { }
+};
+
 // --- Modals & Event Listeners ---
 function setupModals() {
   document.querySelectorAll('.btn-close-modal').forEach(btn => {
@@ -905,6 +949,8 @@ function setupModals() {
   });
 
   document.getElementById('btn-open-create-project')?.addEventListener('click', () => {
+    setProjectModalMode(null);
+    document.getElementById('form-create-project')?.reset();
     document.getElementById('modal-create-project').classList.remove('hidden');
   });
 
@@ -1057,14 +1103,23 @@ function setupEventListeners() {
     const size = parseInt(document.getElementById('proj-size').value) || 3;
 
     try {
-      const post = await API.post('/api/project-posts', {
-        authorId: leaderId,
-        projectTitle: title,
-        requiredSkills: skills,
-        teamSizeNeeded: size,
-        content: title
-      });
-      showToast(`Project "${title}" posted!`, "success");
+      const editingId = State.editingProjectId;
+      const post = editingId
+        ? await API.post(`/api/project-posts/${editingId}/edit`, {
+            projectTitle: title,
+            requiredSkills: skills,
+            teamSizeNeeded: size,
+            content: title
+          })
+        : await API.post('/api/project-posts', {
+            authorId: leaderId,
+            projectTitle: title,
+            requiredSkills: skills,
+            teamSizeNeeded: size,
+            content: title
+          });
+      showToast(editingId ? `Project "${title}" updated!` : `Project "${title}" posted!`, "success");
+      setProjectModalMode(null);
       document.getElementById('modal-create-project').classList.add('hidden');
       e.target.reset();
       await refreshAllData();
