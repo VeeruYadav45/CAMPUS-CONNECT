@@ -1,0 +1,24 @@
+================ UNIT TESTS ================
+PASS U1  Jaccard(Tanvay, Arjun) = 4/6  -> 0.666667
+PASS U2  Jaccard of identical profiles = 1  -> 1
+PASS U3  Jaccard with nothing shared = 0  -> 0
+PASS U4  Jaccard of two empty profiles = 0 (no division by zero)  -> 0
+PASS U5  Jaccard is symmetric  -> J(a,b)=J(b,a)
+PASS U6  BFS order from student 1  -> {1,2,5,4,6,8}
+PASS U7  BFS never reaches the other component (3,7)  -> {1,2,5,4,6,8}
+PASS U8  Duplicate and self connections are ignored  -> {2,4,5}
+PASS U9  People you may know for student 1 (distance 2)  -> {6,8}
+PASS U10  People you may know for student 3 is empty  -> {}
+PASS U11  Top-3 for student 1 starts with Arjun (0.67)  -> Arjun Mehta 0.666667
+PASS U12  Top-K results are in descending score order  -> ok
+PASS U13  Top-K skips the student themselves and zero scores  -> 6 results
+PASS U14  BFS-scoped Top-K excludes students outside the component  -> 5 results
+PASS U15  Inverted index: students with skill Python  -> 5
+PASS U16  Inverted index: unknown skill returns nothing  -> 0
+Student 2 added to group 'AI Study Group'.
+Student 2 is already a member.
+PASS U17  Joining twice does not duplicate a member  -> {1,2}
+Cannot remove admin from group.
+PASS U18  The group admin cannot be removed  -> {1,2}
+============================================
+Passed 18 / 18

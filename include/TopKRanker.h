@@ -21,19 +21,28 @@ struct RankedResult {
 };
 
 // -------------------------------------------------------
-// Comparator for the MAX-HEAP (priority queue).
-// std::priority_queue is a max-heap by default, but we need
-// to define a comparator because our element is a struct.
-// Returns true if a has LOWER priority than b (so b goes on top).
+// "Better" ordering: higher score first; on a tie, lower student
+// ID first, so results are deterministic.
 // -------------------------------------------------------
-struct CompareScore {
-  bool operator()(const RankedResult &a, const RankedResult &b) {
-    return a.score < b.score; // Higher score = higher priority
+inline bool rankedBetter(const RankedResult &a, const RankedResult &b) {
+  if (a.score != b.score) return a.score > b.score;
+  return a.studentId < b.studentId;
+}
+
+// -------------------------------------------------------
+// Comparator for the bounded MIN-HEAP used by getTopK.
+// std::priority_queue keeps the element that compares "largest"
+// on top. Treating "better" as "smaller" puts the WORST of the
+// current top-k on top, ready to be evicted in O(log k).
+// -------------------------------------------------------
+struct WorstOnTop {
+  bool operator()(const RankedResult &a, const RankedResult &b) const {
+    return rankedBetter(a, b);
   }
 };
 
 // -------------------------------------------------------
-// TopKRanker: Uses a MAX-HEAP (std::priority_queue) to rank
+// TopKRanker: Uses a size-k MIN-HEAP (std::priority_queue) to rank
 // students by compatibility score and return the Top-K.
 //
 // How it connects to the other modules:
@@ -44,7 +53,7 @@ struct CompareScore {
 //    as candidates (instead of brute-forcing all students).
 // 3. Reads student data from Veeru's DataStore (no duplication).
 //
-// DSA: Priority Queue (max-heap) — Tanvay's assigned DSA.
+// DSA: Priority Queue (bounded min-heap of size k) — Tanvay's assigned DSA.
 // -------------------------------------------------------
 class TopKRanker {
 public:

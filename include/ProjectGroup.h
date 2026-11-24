@@ -32,7 +32,9 @@ public:
     int getLinkedPostId() const;
 
     // Override display to show project-group-specific info
-    void display() const;
+    void display() const override;
+
+    ProjectGroup* clone() const override { return new ProjectGroup(*this); }
 };
 
 #endif
